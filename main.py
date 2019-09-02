@@ -120,7 +120,10 @@ parser.add_argument("--fb",       type=eval, dest='fb',       default=None) # NU
 parser.add_argument("--resize_interpolation",   type=str, dest='resize_interpolation',    default='BICUBIC')
 parser.add_argument("--upsample_interpolation", type=str, dest='upsample_interpolation',  default='bicubic')
 
-parser.add_argument("--model_choice", type=str, dest='model_choice',    default='baseline')
+parser.add_argument("--gen_choice", type=str, dest='gen_choice',    default='baseline_gen')
+parser.add_argument("--dis_choice", type=str, dest='dis_choice',    default='baseline_dis')
+parser.add_argument("--con_choice", type=str, dest='con_choice',    default='baseline_con')
+
 parser.add_argument("--loss",         type=str, dest='loss',            default='mean_squared_error')
 parser.add_argument("--attention",    type=str, dest='attention',       default='sigmoid')
 parser.add_argument("--precision",    type=str, dest='float_precision', default='float32')
@@ -244,7 +247,7 @@ def baseline(shape1,shape2): # 2 channels, as one from Y/U/V and second if Norma
     model = Model(inputs = [X_input1, X_input2], outputs = X, name='baseline2')
     return model
 
-def mymodel(config,*ip_shapes):
+def dict_to_model_parse(config,*ip_shapes):
     # Recorrecting order issues, is so exist in input config
     config['l_conv_connection']  = [ tuple(sorted(i)) for i in config['l_conv_connection']  ] if 'l_conv_connection'  in config else []
     config['l_merge_connection'] = [ tuple(sorted(i)) for i in config['l_merge_connection'] ] if 'l_merge_connection' in config else []
@@ -288,6 +291,43 @@ def mymodel(config,*ip_shapes):
         model = Model(inputs = tensors[:len(ip_shapes)], outputs = tensors[-1], name=config['name'])
 
     return model
+
+
+def my_gan(generator,discriminator,content,*shapes):
+    X_lr   = Input(shapes[0],name='lr_input')
+    X_hr   = Input(shapes[1],name='hr_input')
+    X_sr   = generator(X_lr)
+    Y_dis  = discriminator(X_sr,X_hr)
+    con_sr = content_model(X_sr)
+    con_hr = content_model(X_hr)
+    # RMSE of content layers defined below
+    Y_con  = Subtract()([con_sr,con_hr])
+    Y_con  = Lambda( lambda x : x**2 )                          (Y_con)
+    Y_con  = Lambda( lambda x : x/memory_batch )                (Y_con)
+    Y_con  = Lambda( lambda x : x**0.5 , name=con_choice )(Y_con)
+    return Model(inputs=[X_lr,X_hr],outputs=[Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
+
+generator_model     = dict_to_model_parse(configs_dict[gen_choice],(block_size//scale,block_size//scale,len(channel_indx)))
+discriminator_model = dict_to_model_parse(configs_dict[dis_choice],(block_size,       block_size,       len(channel_indx)))
+content_model       = dict_to_model_parse(configs_dict[con_choice],(block_size,       block_size,       len(channel_indx)))
+
+gan_model = my_gan( generator_model , discriminator_model , content_model,
+    (block_size//scale,block_size//scale,3) , (block_size,block_size,3) )
+
+gan_model.compile(optimizer='rmsprop',
+              loss =         {dis_choice: 'categorical_crossentropy' , con_choice: 'zero_pred'},
+              loss_weights = {dis_choice: 1 ,                          con_choice: 1e-3})
+
+X_train = get_data('DIV2K','train',indx=['LR','HR'],org=False)
+
+model.fit( { 'lr_input': X_train[0] , 'hr_input': X_train[1] } ,
+           { dis_choice: np.array([[0,1],]*len(X_train[0]),dtype=float_precision) , con_choice:np.array([None]*len(X_train[0])) },
+          epochs=50, batch_size=32)
+# And trained it via:
+model.fit({'main_input': headline_data, 'aux_input': additional_data},
+          {'main_output': labels, 'aux_output': labels},
+          epochs=50, batch_size=32)
+
 
 ######## MODELS DEFINITIONS ENDS ########
 
@@ -453,7 +493,7 @@ if train_flag:
     print('\nOuter Epochs {} Disk Batches {}'.format(outer_epochs,n_disk_batches))
     # Building Model
     if custom_model:
-        model = mymodel( configs_dict[model_choice], (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
+        model = dict_to_model_parse( configs_dict[model_choice], (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
     else:
         model = baseline( (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
 
@@ -601,7 +641,7 @@ if test_flag:
 
     init = datetime.now()
     if custom_model:
-        new_model = mymodel(configs_dict[model_choice], (None,None,len(channel_indx)), (None,None,1) )
+        new_model = dict_to_model_parse(configs_dict[model_choice], (None,None,len(channel_indx)), (None,None,1) )
     else:
         new_model = baseline( (None,None,len(channel_indx)), (None,None,1) )
     print('Time to Build New Model',datetime.now()-init) # profiling
