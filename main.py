@@ -70,19 +70,23 @@ parser.add_argument("--read_as_gray",      type=eval, dest='read_as_gray',      
 parser.add_argument("--data_augmentation", type=eval, dest='data_augmentation', default=False)
 
 # Int Type Arguments
+parser.add_argument("--scale",              type=eval, dest='scale',               default=4)
+parser.add_argument("--block_size",         type=eval, dest='block_size',          default=96)
+parser.add_argument("--bit_depth",          type=eval, dest='bit_depth',           default=8)
+parser.add_argument("--min_LR",             type=eval, dest='min_LR',              default=0)
+parser.add_argument("--max_LR",             type=eval, dest='max_LR',              default=1)
+parser.add_argument("--min_HR",             type=eval, dest='min_HR',              default=-1)
+parser.add_argument("--max_HR",             type=eval, dest='max_HR',              default=1)
+
 parser.add_argument("--outer_epochs",       type=eval, dest='outer_epochs',        default=5)
 parser.add_argument("--inner_epochs",       type=eval, dest='inner_epochs',        default=2)
 parser.add_argument("--disk_batches_limit", type=eval, dest='disk_batches_limit',  default=None)
 parser.add_argument("--valid_images_limit", type=eval, dest='valid_images_limit',  default=None)
 parser.add_argument("--test_images_limit",  type=eval, dest='test_images_limit',   default=None)
-parser.add_argument("--seed",               type=eval, dest='np_seed',             default=None)
-
 parser.add_argument("--disk_batch",         type=eval, dest='disk_batch',          default=20)
-parser.add_argument("--memory_batch",       type=eval, dest='memory_batch',        default=128)
-parser.add_argument("--block_size",         type=eval, dest='block_size',          default=32)
-parser.add_argument("--bit_depth",          type=eval, dest='bit_depth',           default=8)
-parser.add_argument("--min_q",              type=eval, dest='min_q',               default=0)
-parser.add_argument("--max_q",              type=eval, dest='max_q',               default=51)
+parser.add_argument("--memory_batch",       type=eval, dest='memory_batch',        default=32)
+
+parser.add_argument("--seed",               type=eval, dest='np_seed',             default=None)
 parser.add_argument("--SUP",                type=eval, dest='SUP',                 default=5)
 parser.add_argument("--fSUP",               type=eval, dest='fSUP',                default=None)
 parser.add_argument("--alpha",              type=eval, dest='alpha',               default=1) # MS-SSIM specific
@@ -117,8 +121,8 @@ parser.add_argument("--precision",    type=str, dest='float_precision', default=
 parser.add_argument("--optimizer",    type=str, dest='optimizer',       default='Adam')
 parser.add_argument("--name",         type=str, dest='data_name',       default='CAR')
 parser.add_argument("--save_dir",     type=str, dest='save_dir',        default='saved_CAR_models')
-parser.add_argument("--high_path",    type=str, dest='high_path',       default='/vol1/dbstore/orc_srib/amith.ds/CLIC/Dataset')
-parser.add_argument("--low_path",     type=str, dest='low_path',        default='/vol1/dbstore/orc_srib/amith.ds/CLIC_ENCODE')
+parser.add_argument("--high_path",    type=str, dest='high_path',       default=os.path.join('.','..','data','HR'))
+parser.add_argument("--low_path",     type=str, dest='low_path',        default=os.path.join('.','..','data','LR'))
 
 # Tuple Type Arguments
 parser.add_argument("--channel_indx",  type=eval, dest='channel_indx',  default=(0,1,2))
@@ -288,28 +292,19 @@ def mymodel(config,*ip_shapes):
 datasets = {} # Global Dataset Storage
 file_names = {} # Global filenames for disk_batching
 
-def normalizeC(mat):
+def normalize(mat):
     if str(mat.dtype)=='object':
         val = np.array([ (i.astype(float_precision)/((1<<bit_depth)-1)) for i in mat])
     else:
         val = mat.astype(float_precision) / ((1<<bit_depth)-1)
     return val
 
-def normalizeQ(mat):
-    if type(mat) in (int,float):
-        val = (mat-min_q)/(max_q-min_q)
-    elif str(mat.dtype)=='object':
-        val = np.array([((i.astype(float_precision)-min_q)/(max_q-min_q)) for i in mat])
-    else:
-        val = (mat.astype(float_precision)-min_q) / (max_q-min_q)
-    return val
-
-def backconvert(mat):
+def backconvert(mat,typ='HR'):
     mat = mat*((1<<bit_depth)-1)
     return np.clip( mat.round(), 0, ((1<<bit_depth)-1) )
 
 def prepare_dataset(IMG,QP=32,channel_indx=(0,)):
-    norm_IMG = normalizeC(np.array([ i[:,:,channel_indx] for i in IMG ]))
+    norm_IMG = normalize(np.array([ i[:,:,channel_indx] for i in IMG ]))
     norm_QP  = normalizeQ(QP)
     if str(norm_IMG.dtype)=='object':
         val = [ norm_IMG, np.array([np.ones(i.shape[:-1]+(1,),dtype=float_precision)*norm_QP for i in norm_IMG]) ]
@@ -329,42 +324,30 @@ def on_fly_crop(mat,block_size=block_size,overlap=overlap):
             ls.append( mat[i:i+block_size,j:j+block_size] )
     return ls
     
-def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, typ = 'train'):
-    if name not in datasets:
-        datasets[name] = {}
-    for phase in ('train','valid','test'): # All datasets be present, even if empty
-        if phase not in datasets[name]:
-            datasets[name][phase] = {}
-    # Feeding Ground Truth (High Quality Images)
-    datasets[name][typ]['high'] = []
-    # os.listdir(os.path.join(high_path,typ))
-    for img_name in file_names[typ][lw_indx:up_indx]:
-        if read_as_gray:
-            img_mat = np.round(((1<<bit_depth)-1)*io.imread(os.path.join(high_path,typ,img_name),as_gray=read_as_gray))[:,:,np.newaxis]
-        else:
-            img_mat = io.imread(os.path.join(high_path,typ,img_name),as_gray=read_as_gray)
-        if crop_flag:
-            datasets[name][typ]['high'].extend(on_fly_crop(img_mat))
-        else:
-            datasets[name][typ]['high'].append(img_mat)
-    # Feeding Encoded Images (Low Quality Images)
-    for fldr_name in os.listdir(low_path):
-        if ('qp' in fldr_name) and os.path.isdir(os.path.join(low_path,fldr_name)):
-            q_value = fldr_name.split('_')[-1].strip()
-            datasets[name][typ][q_value] = []
-            for img_name in file_names[typ][lw_indx:up_indx]:
-                if read_as_gray:
-                    img_mat = np.round(((1<<bit_depth)-1)*io.imread(os.path.join(low_path,fldr_name,'output',typ,img_name),as_gray=read_as_gray))[:,:,np.newaxis]
-                else:
-                    img_mat = io.imread(os.path.join(low_path,fldr_name,'output',typ,img_name),as_gray=read_as_gray)
-                if crop_flag:
-                    datasets[name][typ][q_value].extend(on_fly_crop(img_mat))
-                else:
-                    datasets[name][typ][q_value].append(img_mat)
-    #Converting into Numpy Arrays
-    for typ in datasets[name]:
-        for key in list(datasets[name][typ].keys()):
-            datasets[name][typ][key] = np.array([i.astype('uint8') for i in datasets[name][typ][key]])
+def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, phase = 'train', erase_prev=False):
+    global datasets
+    if erase_prev:
+        datasets = {}
+    for x in ('HR','LR'):
+        if x not in datasets:
+            data_path = high_path if x=='HR' else low_path
+            datasets[x] = {}
+        if name not in datasets:
+            datasets[x][name] = {}
+        for ph in ('train','valid','test'):
+            if ph not in datasets[name]:# All datasets be present, even if empty
+                datasets[x][name][ph] = []
+            if phase == ph:
+                for img_name in file_names[typ][lw_indx:up_indx]:
+                    clr = 'grayscale' if read_as_gray else 'rgb'
+                    img_mat = img_to_array( load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr) , dtype='uint8')
+                    if crop_flag:
+                        datasets[x][name][phase].extend(on_fly_crop(img_mat))
+                    else:
+                        datasets[x][name][phase].append(img_mat)
+
+            #Converting into Numpy Arrays
+            datasets[x][name][phase] = np.array(datasets[x][name][phase],dtype='uint8')
 
 def get_data(typ,key,indx=(0,1),org=False): # Flag to get as uint8 or float values
     global q_value
@@ -374,7 +357,7 @@ def get_data(typ,key,indx=(0,1),org=False): # Flag to get as uint8 or float valu
     if 1 in indx: y = datasets[data_name][typ]['high']
     if not org:
         if 0 in indx: x = prepare_dataset(x,q_value,channel_indx)
-        if 1 in indx: y = normalizeC(y)
+        if 1 in indx: y = normalize(y)
     return (x, y) if indx==(0,1) else (x if indx==(0,) else y)
 
 ######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
