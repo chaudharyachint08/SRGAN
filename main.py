@@ -297,21 +297,28 @@ def my_gan(generator,discriminator,content,*shapes):
     X_lr   = Input(shapes[0],name='lr_input')
     X_hr   = Input(shapes[1],name='hr_input')
     X_sr   = generator(X_lr)
-    Y_dis  = discriminator(X_sr,X_hr)
+    
+    # Actual is given 0, fake is given 1
+    Y_dis_sr  = discriminator(X_sr)
+    Y_dis_hr  = discriminator(X_hr)
+    Y_dis     = Concatenate(name='dis_output')([Y_dis_sr,Y_dis_hr])
+    
+    # RMSE of content layers defined below
     con_sr = content_model(X_sr)
     con_hr = content_model(X_hr)
-    # RMSE of content layers defined below
     Y_con  = Subtract()([con_sr,con_hr])
-    Y_con  = Lambda( lambda x : x**2 )                          (Y_con)
-    Y_con  = Lambda( lambda x : x/memory_batch )                (Y_con)
-    Y_con  = Lambda( lambda x : x**0.5 , name=con_choice )(Y_con)
+    Y_con  = Lambda( lambda x : x**2 )                       (Y_con)
+    Y_con  = Lambda( lambda x : x/memory_batch )             (Y_con)
+    Y_con  = Lambda( lambda x : x**0.5 , name='con_output' ) (Y_con)
+    
+    #
     return Model(inputs=[X_lr,X_hr],outputs=[Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
 
 generator_model     = dict_to_model_parse(configs_dict[gen_choice],(block_size//scale,block_size//scale,len(channel_indx)))
 discriminator_model = dict_to_model_parse(configs_dict[dis_choice],(block_size,       block_size,       len(channel_indx)))
 content_model       = dict_to_model_parse(configs_dict[con_choice],(block_size,       block_size,       len(channel_indx)))
 
-gan_model = my_gan( generator_model , discriminator_model , content_model,
+gan_model           = my_gan( generator_model , discriminator_model , content_model,
     (block_size//scale,block_size//scale,3) , (block_size,block_size,3) )
 
 gan_model.compile(optimizer='rmsprop',

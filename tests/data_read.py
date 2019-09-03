@@ -108,7 +108,7 @@ def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, pha
         data_path = high_path if x=='HR' else low_path
         if x not in datasets:
             datasets[x] = {}
-        if name not in datasets:
+        if name not in datasets[x]:
             datasets[x][name] = {}
         for ph in ('train','valid','test'):
             if ph not in datasets[x][name]:# All datasets be present, even if empty
@@ -117,10 +117,11 @@ def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, pha
                 for img_name in file_names[phase][lw_indx:up_indx]:
                     clr = 'grayscale' if read_as_gray else 'rgb'
                     image = load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr)
-                    image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
-                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                    if x=='HR':
+                        image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
+                            resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                     # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
-                    img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
+                    img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth) )
                     if crop_flag:
                         datasets[x][name][phase].extend(on_fly_crop(img_mat,block_size//(1 if x=='HR' else scale),overlap))
                     else:
