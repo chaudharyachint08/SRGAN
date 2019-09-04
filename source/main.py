@@ -467,7 +467,7 @@ def compile_model(model,mode,opt):
     freeze_model(   generator_model )
     unfreeze_model( discriminator_model )
 
-
+'''
 gan_model = my_gan( block_size )
 gan_model = compiled_model(gan_model,'cnn','Adam')
 
@@ -485,6 +485,7 @@ train_output = {
     }
 
 model.fit( train_input , train_output,epochs=inner_epochs, batch_size=memory_batch)
+'''
 
 ######## MODELS DEFINITIONS ENDS ########
 
