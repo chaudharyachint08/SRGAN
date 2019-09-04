@@ -492,50 +492,32 @@ model.fit( train_input , train_output,epochs=inner_epochs, batch_size=memory_bat
 ######## PLOTTING FUNCTIONS BEGINS HERE ########
 
 def plot_history(history):
-    plot_dir =  os.path.join('training_plots','plots - '+model.name)
+    plot_dir =  os.path.join('.','training_plots',gan_model.name)
     if os.path.isdir(plot_dir):
         shutil.rmtree(plot_dir)
     os.makedirs(plot_dir)
 
-    flag = False ; plt.close()
-    for key in history:
-        if 'loss' in key:
-            flag = True
-            _ = plt.plot(history[key],linewidth=1,label=key)
-    plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3e}')) # 2 decimal places
-    if flag:
-        plt.xticks( np.round(np.linspace(0,len(history[key])-1,10),2) , np.round(np.linspace(1,len(history[key]),10),2) )
-        plt.grid(True)
-        plt.xlabel('Epochs') ; plt.ylabel(loss) ; plt.title('Training Loss')
-        plt.legend(loc='upper left',bbox_to_anchor=(1,1),fancybox=True,shadow=True)
-        plt.savefig(os.path.join(plot_dir,'Training Loss.png'),dpi=600,bbox_inches='tight',format='PNG')
-        plt.close()
+    all_keys      = set( history.keys() )
+    non_val_keys  = set( x for x in all_keys if not x.startswith('val') )
+    both_keys     = set( x for x in all_keys if (x in non_val_keys and 'val_'+x in all_keys) )
+    non_val_keys  = both_keys - non_val_keys
+    only_val_keys = all_keys - ( both_keys|non_val_keys )
 
-    flag = False ; plt.close()
-    for key in history:
-        if 'PSNR' in key and 'IPSNR' not in key:
-            flag = True
-            _ = plt.plot(history[key],linewidth=1,label=key)
-    if flag:
-        plt.xticks( np.round(np.linspace(0,len(history[key])-1,10),2) , np.round(np.linspace(1,len(history[key]),10),2) )
-        plt.grid(True)
-        plt.xlabel('Epochs') ; plt.ylabel('PSNR') ; plt.title('Training PSNR')
-        plt.legend(loc='upper left',bbox_to_anchor=(1,1),fancybox=True,shadow=True)
-        plt.savefig(os.path.join(plot_dir,'Training PSNR.png'),dpi=600,bbox_inches='tight',format='PNG')
-        plt.close()
-
-    flag = False ; plt.close()
-    for key in history:
-        if 'IPSNR' in key:
-            flag = True
-            _ = plt.plot(history[key],linewidth=1,label=key)
-    if flag:
-        plt.xticks( np.round(np.linspace(0,len(history[key])-1,10),2) , np.round(np.linspace(1,len(history[key]),10),2) )
-        plt.grid(True)
-        plt.xlabel('Epochs') ; plt.ylabel('Inc-PSNR') ; plt.title('Training Inc-PSNR')
-        plt.legend(loc='upper left',bbox_to_anchor=(1,1),fancybox=True,shadow=True)
-        plt.savefig(os.path.join(plot_dir,'Training Inc-PSNR.png'),dpi=600,bbox_inches='tight',format='PNG')
-        plt.close()
+    for ix,keys in enumerate((non_val_keys,only_val_keys,all_keys)):
+        for key in keys:
+            if ix==0:
+                _ = plt.plot(history[key]         , linewidth=1 , label=key )
+            if ix==1:
+                _ = plt.plot(history[key]         , linewidth=1 , label=key )
+            if ix==2:
+                _ = plt.plot( history[key]        , linewidth=1 , label=key        )
+                _ = plt.plot( history['val_'+key] , linewidth=1 , label='val_'+key )
+            plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3e}')) # 2 decimal places
+            plt.xticks( np.round(np.linspace(0,len(history[key])-1,10),2) , np.round(np.linspace(1,len(history[key]),10),2) )
+            plt.grid(True) ; plt.xlabel('Epochs') ; plt.ylabel(key) ; plt.title(key.upper())
+            plt.legend( loc='upper left' , bbox_to_anchor=(1,1) , fancybox=True , shadow=True )
+            plt.savefig( os.path.join(plot_dir,'{}.png'.format(key)) , dpi=600 , bbox_inches='tight' , format='PNG' )
+            plt.close()
 
 ######## PLOTTING FUNCTIONS ENDS HERE ########
 
