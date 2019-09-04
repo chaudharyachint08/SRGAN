@@ -348,62 +348,62 @@ get_custom_objects().update( keras_update_dict)
 
 ######## MODELS DEFINITIONS BEGINS ########
 
-def baseline(shape1,shape2): # 2 channels, as one from Y/U/V and second if Normalizaed QP map
-    X_input1 = Input(shape1)
-    X_input2 = Input(shape2)
-    X_input = Concatenate()([X_input1, X_input2])
-    X = Conv2D(64, (5,5), strides=(1, 1), padding='same', activation='relu', use_bias=True, kernel_initializer='glorot_uniform', bias_initializer='zeros')(X_input)
-    conv = Conv2D(64, (3,3), strides=(1, 1), padding='same', activation='relu', use_bias=True, kernel_initializer='glorot_uniform', bias_initializer='zeros')
-    for i in range(6):
-        X = conv(X)
-    X = Conv2D(1, (3,3), strides=(1, 1), padding='same', activation='linear', use_bias=True, kernel_initializer='glorot_uniform', bias_initializer='zeros')(X)
-    X = Add()([X_input1, X])
-    model = Model(inputs = [X_input1, X_input2], outputs = X, name='baseline2')
-    return model
-
 def dict_to_model_parse(config,*ip_shapes):
-    # Recorrecting order issues, is so exist in input config
-    config['l_conv_connection']  = [ tuple(sorted(i)) for i in config['l_conv_connection']  ] if 'l_conv_connection'  in config else []
-    config['l_merge_connection'] = [ tuple(sorted(i)) for i in config['l_merge_connection'] ] if 'l_merge_connection' in config else []
-    config['l_block_connection'] = [ tuple(sorted(i)) for i in config['l_block_connection'] ] if 'l_block_connection' in config else []
-    # CodeBase not ready for Multioutput models yet
-    config['outputs']            = [ tuple(sorted(i)) for i in config['outputs'] ]            if 'outputs'            in config else []
-
-    #Inputs are primary tensors
-    target, tensors = len(ip_shapes), [ Input(i) for i in ip_shapes ]
-    while True:
-        ls_conv  = [ i[-1] for i in config['l_conv_connection']  ] if 'l_conv_connection'  in config else []
-        ls_merge = [ i[-1] for i in config['l_merge_connection'] ] if 'l_merge_connection' in config else []
-        ls_block = [ i[-1] for i in config['l_block_connection'] ] if 'l_block_connection' in config else []
-        if target in ls_merge:
-            src_indx = ls_merge.index( target )
-            lyr = eval( '{}()'.format(config['l_merge_type'][src_indx]) )
-            ip = config['l_merge_connection'][src_indx][:-1]
-            tensors.append( lyr([tensors[i] for i in ip]) )
-        elif target in ls_conv:
-            src_indx = ls_conv.index( target )
-            ls_args = []
-            for i in ('filters','kernel_size','strides','padding','dilation_rate','activation'):
-                if (i!='activation') or (config['l_'+i][src_indx] not in advanced_activations):
-                    ls_args.append( '{}={}'.format(i,repr(config['l_'+i][src_indx])) )
-            args_str = ', '.join(ls_args)
-            lyr = eval( '{}({})'.format(config['l_conv_type'][src_indx],args_str) )
-            ip = config['l_conv_connection'][ ls_conv.index( target )][0]
-            if config['l_activation'][src_indx] not in advanced_activations:        
-                tensors.append( lyr(tensors[ip]) )
-            else:
-                tensors.append( eval(config['l_activation'][src_indx])()(lyr(tensors[ip])) )
-        elif target in ls_block:
-            src_indx = ls_block.index( target )
-            tensors.append( configs_dict[config['l_block_fun'][src_indx]](*(tensors[i] for i in config['l_block_connection'][src_indx][:-1])) )
+    # These names are to be used in defining dictionaries
+    all_lyr_typs = ('dense','actvn','drpot','flltn','input','reshp','lmbda','spdrp','convo','usmpl','zpdng','poolg','merge','aactv','btnrm','block','clpre')
+    for lyr_typ in all_lyr_typs:
+        config[lyr_typ] = [ tuple(sorted(i)) for i in config[lyr_typ]  ] if lyr_typ in config else []
+    if config['clpre']: # if ContentLayersModel is defined, then no other architecture is there to setup
+        ConModel = eval( 'keras.applications.{}.{}'.format(config['clpre'][0],config['clpre_sub'][0]) )
+        con_model = ConModel( include_top=False, weights='imagenet', input_shape=(block_size,block_size,len(channel_indx)) )
+        if 'clpre_out' in config: # if defined after which convo layer to take content, else last convolution layer is taken
+            model = Model( inputs = con_model.input , outputs = con_model.get_layer(config['clpre_out'][0]).output )
         else:
-            break
-        target += 1
-    if config['outputs']: # NU : CodeBase not ready for Multioutput models yet
-        model = Model(inputs = tensors[:len(ip_shapes)], outputs = [tensors[i] for i in config['outputs']], name=config['name'])
-    else:
-        model = Model(inputs = tensors[:len(ip_shapes)], outputs = tensors[-1], name=config['name'])
-
+            model = con_model
+    else: # Setting up architecture for GNERATOR/DISCRIMINATOR
+        target, tensors = len(ip_shapes), [ Input(i) for i in ip_shapes ]
+        while True:
+            for lyr_typ in all_lyr_typs:
+                ls = [ i[-1] for i in config[lyr_typ]  ] if lyr_typ in config else []
+                if target in ls: # Which layer type is to be constructed and its index in category
+                    cat_ix = ls.index(target)
+                    break
+            lyr_args = config[lyr_typ+'_par'][cat_ix] # Collecting argumenst to pass while construction layer
+            # Core layers are only individual in theri category, so no mention can be used directly
+            core_lyrs = { 'dense':'Dense', 'actvn':'Activation', 'drpot':'Dropout', 'flltn':'Flatten',
+                'input':'Input', 'reshp':'Reshape', 'lmbda':'Lambda', 'spdrp':'SpatialDropout2D' }
+            multi_input_lyr, nxt_lyr = False, None # if layer has multiple inputs (MERGE/BLOCK)
+            if   lyr_typ in core_lyrs:
+                lyr_spec = core_lyrs[lyr_typ]            
+            elif lyr_typ in ('convo','usmpl','poolg'):
+                if lyr_typ == convo:
+                    lyr_spec = config[lyr_typ+'_sub'][cat_ix]
+                else:
+                    lyr_spec = 'UpSampling2D' if lyr_typ == 'usmpl' else 'ZeroPadding2D'
+            elif lyr_typ=='poolg':
+                lyr_spec = config[lyr_typ+'_sub'][cat_ix]
+            elif lyr_typ=='merge':
+                lyr_spec = config[lyr_typ+'_sub'][cat_ix]
+                multi_input_lyr = True
+            elif lyr_typ=='aactv':
+                lyr_spec = config[lyr_typ+'_sub'][cat_ix]
+            elif lyr_typ=='btnrm':
+                lyr_spec = 'BatchNormalization'
+            elif lyr_typ=='block':
+                lyr_spec = config[lyr_typ+'_sub'][cat_ix]
+                nxt_lyr  = eval( 'config[{}]'.format(lyr_spec) )
+                multi_input_lyr = True
+            if nxt_lyr is None:
+                nxt_lyr  = eval( '{}({})'.format( lyr_spec , ','.join('{}={}'.format(x,lyr_args[x]) for x in lyr_args) ) )
+                if multi_input_lyr:
+                    tensors.append(  nxt_lyr( [ tensors[x] for x in config[lyr_typ+'_con'][cat_ix][:-1] ] ) )
+                else:
+                    tensors.append(  nxt_lyr( tensors[ config[lyr_typ+'_con'][cat_ix][-1] ] ) )
+            if nxt_lyr is None: # no layer is chosen, as target doesnot exist to be made in any layer
+                break
+            target += 1
+        model = Model( inputs = tensors[:len(ip_shapes)] , outputs = tensors[-1] )
+    model.name = config['name']
     return model
 
 
@@ -419,7 +419,7 @@ def my_gan(*shapes):
     X_lr   = Input(shapes[0],name='lr_input')
     X_hr   = Input(shapes[1],name='hr_input')
 
-    Y_sr   = generator(X_lr)    
+    Y_sr   = generator(X_lr)
     # Actual is given 1, fake is given 0
     Y_dis_sr  = discriminator(X_sr)
     Y_dis_hr  = discriminator(X_hr)
@@ -467,25 +467,6 @@ def compile_model(model,mode,opt):
     freeze_model(   generator_model )
     unfreeze_model( discriminator_model )
 
-'''
-gan_model = my_gan( block_size )
-gan_model = compiled_model(gan_model,'cnn','Adam')
-
-
-X_train = get_data(data_name,'train',indx=['LR','HR'],org=False)
-
-train_input  = {
-    'lr_input'  :X_train[0] ,
-    'hr_input': X_train[1]
-    }
-train_output = {
-    'gen_output':X_train[1] ,
-    'dis_output':np.array([[0,1],]*len(X_train[0]),dtype=float_precision) ,
-    'con_output':np.array([None]*len(X_train[0]))
-    }
-
-model.fit( train_input , train_output,epochs=inner_epochs, batch_size=memory_batch)
-'''
 
 ######## MODELS DEFINITIONS ENDS ########
 
