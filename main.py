@@ -469,7 +469,7 @@ train_input  = {
 train_output = {
     'gen_output':X_train[1] ,
     'dis_output':np.array([[0,1],]*len(X_train[0]),dtype=float_precision) ,
-    con_choice:np.array([None]*len(X_train[0]))
+    'con_output':np.array([None]*len(X_train[0]))
     }
 
 model.fit( train_input , train_output,epochs=inner_epochs, batch_size=memory_batch)
@@ -563,6 +563,11 @@ def train(name,train_strategy,gen_dis_ratio=(1,1)):
     else:
         model = baseline( (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
     '''
+    lr_delta  = 0 if (flr  is None) else ((flr-lr)   / (n_disk_batches*outer_epochs-1))
+    a_delta   = 0 if (fa   is None) else ((fa-a)     / (n_disk_batches*outer_epochs-1))
+    b_delta   = 0 if (fb   is None) else ((fb-b)     / (n_disk_batches*outer_epochs-1))
+    SUP_delta = 0 if (fSUP is None) else ((fSUP-SUP) / (n_disk_batches*outer_epochs-1))
+
     gan_model = my_gan( block_size )
     if optimizer == 'Adam':
         opt = keras.optimizers.Adam( lr=lr, decay=decay )
@@ -571,49 +576,48 @@ def train(name,train_strategy,gen_dis_ratio=(1,1)):
     else:
         raise Exception('Unexpected Optimizer than two classics')
 
-    compiled_model(gan_model,train_strategy,opt)
     model_path = os.path.join(save_dir, gan_model.name)
 
     if os.path.isdir(save_dir) and gan_model.name in os.listdir(save_dir):
         if prev_model:
-            model = keras.models.load_model(model_path,custom_objects=keras_update_dict)
+            gan_model = keras.models.load_model(model_path,custom_objects=keras_update_dict)
         else:
             os.remove(model_path)
 
-    lr_delta  = 0 if (flr  is None) else ((flr-lr)   / (n_disk_batches*outer_epochs-1))
-    a_delta   = 0 if (fa   is None) else ((fa-a)     / (n_disk_batches*outer_epochs-1))
-    b_delta   = 0 if (fb   is None) else ((fb-b)     / (n_disk_batches*outer_epochs-1))
-    SUP_delta = 0 if (fSUP is None) else ((fSUP-SUP) / (n_disk_batches*outer_epochs-1))
-
-    K.set_value(model.optimizer.lr,    lr)
-    K.set_value(model.optimizer.decay, decay)
-    
-    global_history = None
 
     #Reading Validation Set
-    np.random.shuffle(file_names['valid'])
+    np.random.shuffle(file_names[name]['valid'])
     print('\nReading Validation Set',end=' ') ; init_time = datetime.now()
     feed_data(data_name,low_path,high_path,None,valid_images_limit,True,'valid')
     print( 'Time taken is {} '.format((datetime.now()-init_time)) )
 
-    x_valid, y_valid = None, None
-    for key in sorted(datasets[data_name]['valid']):
-        if key.isnumeric():
-            _1, _2 = get_data('valid',key)
-            x_valid = _1 if (x_valid is None) else [ np.concatenate( (x_valid[0], _1[0]) ), np.concatenate( (x_valid[1], _1[1]) ) ]
-            y_valid = _2 if (y_valid is None) else np.concatenate( (y_valid, _2) )
+    x_valid = get_data(data_name,'valid',indx=['LR','HR'],org=False)
+    x_valid = {
+    'lr_input': x_valid[0] ,
+    'hr_input': x_valid[1]
+    }
+    y_valid = {
+    'gen_output':x_valid['hr_input'] ,
+    'dis_output':np.array([[0,1],]*len(x_valid[0]),dtype=float_precision) ,
+    'con_output':np.array([None]*len(x_valid[0]))
+    }
 
-    val_init_PSNR = npPSNR(y_valid,x_valid[0])
+    p_valid = gan_model.predict(x_valid)
+    val_init_PSNR = npPSNR( backconvert(y_valid['hr_input'],'HR') , backconvert(p_valid[0],'HR') )
     iSUP = SUP
+    global_history = None
+
 
     for epc in range(outer_epochs):
-        np.random.shuffle(file_names['train'])
-
+        # compile_model(gan_model,train_strategy,opt)
+        
+        np.random.shuffle(file_names[name]['train'])
         SUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
 
         print('\nOuter Epoch {}'.format(epc+1))
         for i in range(n_disk_batches):
-            K.set_value(model.optimizer.lr,    lr+(i+epc*n_disk_batches)*lr_delta)
+            K.set_value(gan_model.optimizer.lr,    lr+(i+epc*n_disk_batches)*lr_delta)
+            K.set_value(gan_model.optimizer.decay, decay)
             if gclip:
                 if gnclip is not None:
                     model.optimizer.__dict__['clipnorm']  = gnclip / lr+(i+epc*n_disk_batches)*lr_delta
