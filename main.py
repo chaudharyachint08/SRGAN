@@ -124,12 +124,13 @@ parser.add_argument("--gen_choice", type=str, dest='gen_choice',    default='bas
 parser.add_argument("--dis_choice", type=str, dest='dis_choice',    default='baseline_dis')
 parser.add_argument("--con_choice", type=str, dest='con_choice',    default='baseline_con')
 
-parser.add_argument("--loss",         type=str, dest='loss',            default='mean_squared_error')
+# parser.add_argument("--loss",         type=str, dest='loss',            default='MSE')
 parser.add_argument("--attention",    type=str, dest='attention',       default='sigmoid')
 parser.add_argument("--precision",    type=str, dest='float_precision', default='float32')
 parser.add_argument("--optimizer",    type=str, dest='optimizer',       default='Adam')
-parser.add_argument("--name",         type=str, dest='data_name',       default='CAR')
-parser.add_argument("--save_dir",     type=str, dest='save_dir',        default='saved_CAR_models')
+parser.add_argument("--name",         type=str, dest='data_name',       default='sample')
+parser.add_argument("--save_dir",     type=str, dest='save_dir',        default='saved_models')
+parser.add_argument("--save_dir",     type=str, dest='train_strategy',  default='cnn') # Default is for CNN based SR other is 'gan'
 parser.add_argument("--high_path",    type=str, dest='high_path',       default=os.path.join('.','..','data','HR'))
 parser.add_argument("--low_path",     type=str, dest='low_path',        default=os.path.join('.','..','data','LR'))
 
@@ -162,73 +163,175 @@ C1, C2 = k1**2 if (k1 is not None) else C1 , k2**2 if (k2 is not None) else C2
 
 
 
-######## METRIC DEFINITIONS BEGINS ########
+######## DATA STORAGE, READING & PROCESSING FUNCTIONS BEGINS ########
 
-def PSNR(y_true, y_pred,round_flg=True):
-    if round_flg:
-        y_true, y_pred = K.clip( K.round(y_true*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) ), K.clip( K.round(y_pred*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
+datasets = {} # Global Dataset Storage
+file_names = {} # Global filenames for disk_batching
+
+def check_and_gen(name,low_path,high_path):
+    "Checks for LR images in low_storage & create if doesn't exist"
+    for ph in ('train','valid','test'):
+        low_store  = os.path.join(low_path, name,ph)
+        high_store = os.path.join(high_path,name,ph)
+        if not os.path.isdir(low_store):
+            os.makedirs(low_store)
+        for file_name in os.listdir(high_store):
+            if not os.path.isfile(os.path.join(low_store,file_name)):
+                    clr = 'grayscale' if read_as_gray else 'rgb'
+                    image = load_img(os.path.join(high_store,file_name),color_mode=clr)
+                    image = image.resize( ((image.width//scale),(image.height//scale)) ,
+                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                    image.save(os.path.join(low_store,file_name))
+
+def on_fly_crop(mat,block_size=block_size,overlap=overlap):
+    "Crop images into patches, with explicit overlap"
+    ls = []
+    nparts1, nparts2 = int(np.ceil(mat.shape[0]/block_size)), int(np.ceil(mat.shape[1]/block_size))
+    step1, step2     = (mat.shape[0]-block_size)/(nparts1-1), (mat.shape[1]-block_size)/(nparts2-1)
+    step1, step2     = step1 - int(np.ceil(step1*overlap))  , step2 - int(np.ceil(step2*overlap))
+    for i in range(nparts1):
+        i = round(i*step1)
+        for j in range(nparts2):
+            j = round(j*step2)
+            ls.append( mat[i:i+block_size,j:j+block_size] )
+    return ls
+    
+def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, phase = 'train', erase_prev=False):
+    "feed the required fraction of dataset into memory for consumption by model"
+    global datasets
+    if erase_prev:
+        datasets = {}
+    check_and_gen(name,low_path,high_path)
+    for x in ('LR','HR'):
+        data_path = high_path if x=='HR' else low_path
+        if x not in datasets:
+            datasets[x] = {}
+        if name not in datasets:
+            datasets[x][name] = {}
+        for ph in ('train','valid','test'):
+            if ph not in datasets[x][name]:# All datasets be present, even if empty
+                datasets[x][name][ph] = []
+            if phase == ph:
+                for img_name in file_names[name][phase][lw_indx:up_indx]:
+                    clr = 'grayscale' if read_as_gray else 'rgb'
+                    image = load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr)
+                    image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
+                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                    # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
+                    img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
+                    if crop_flag:
+                        datasets[x][name][phase].extend(on_fly_crop(img_mat,block_size//(1 if x=='HR' else scale),overlap))
+                    else:
+                        datasets[x][name][phase].append(img_mat)
+            #Converting into Numpy Arrays
+            datasets[x][name][phase] = np.array(datasets[x][name][phase])
+
+def normalize(mat,typ='HR'):
+    "Normalize image matrix into ranges given"
+    if str(mat.dtype)=='object':
+        val = np.array([ (i.astype(float_precision)/((1<<bit_depth)-1)) for i in mat])
     else:
-        y_true, y_pred = K.clip( (y_true*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) ), K.clip( (y_pred*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
-    return (10.0 * K.log((((1<<bit_depth)-1) ** 2) / (K.mean(K.square(y_pred - y_true))))) / K.log(10.0)
+        val = mat.astype(float_precision) / ((1<<bit_depth)-1)
+    return (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))*val + eval('min_{}'.format(typ))
 
-def npPSNR(y_true, y_pred,round_flg=True):
-    if round_flg:
-        y_true = np.clip( np.round(y_true*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
-        y_pred = np.clip( np.round(y_pred*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
-    else:
-        y_true = np.clip( (y_true*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
-        y_pred = np.clip( (y_pred*((1<<bit_depth)-1)), 0, ((1<<bit_depth)-1) )
-    return (10.0 * np.log((((1<<bit_depth)-1) ** 2) / (np.mean(np.square(y_pred - y_true))))) / np.log(10.0)
+def backconvert(mat,typ='HR'):
+    mat = ( mat - eval('min_{}'.format(typ)) ) / (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))
+    mat = mat*((1<<bit_depth)-1)
+    return np.clip( mat.round(), 0, ((1<<bit_depth)-1) )
 
-######## METRIC DEFINITIONS ENDS ########
+def get_data(name,phase,indx=['LR','HR'],org=False): # Flag to get as uint8 or float values
+    res = []
+    for x in indx:
+        res.append( datasets[x][name][phase] )
+        if not org:
+            res[-1] = normalize(res[-1],x)
+    return res if len(res)>1 else res[0]
+
+######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
 
 
 
 ######## CUSTOM LOSS FUNCTIONS DEFINITIONS BEGINS ########
 
 def fgauss(size,sigma):
-  x, y = np.mgrid[-size//2 + 1:size//2 + 1, -size//2 + 1:size//2 + 1]
-  g = np.exp(-((x**2 + y**2)/(2.0*sigma**2)))
-  return g/g.sum()
+    x, y = np.mgrid[-size//2 + 1:size//2 + 1, -size//2 + 1:size//2 + 1]
+    g = np.exp(-((x**2 + y**2)/(2.0*sigma**2)))
+    return g/g.sum()
 
 def Kfgauss(size,sigma,channels):
-  fg = np.array([fgauss(size,sigma)]*channels).T[:,:,:,np.newaxis]
-  return K.constant( fg )
+    fg = np.array([fgauss(size,sigma)]*channels).T[:,:,:,np.newaxis]
+    return K.constant( fg )
 
-def MIX( X,Y,a=a,M=SUP, C1=C1,C2=C2, alpha=alpha,beta=beta ):
-  channels = len(channel_indx)
-  Wo = K.ones((M,M,channels,1)) / M**2
+def MIX_LOSS( X,Y,a=a,M=SUP, C1=C1,C2=C2, alpha=alpha,beta=beta ):
+    channels = len(channel_indx)
+    Wo = K.ones((M,M,channels,1)) / M**2
 
-  def l(scale):
-    Wg = Kfgauss(M,scale,channels)
-    UX, UY = K.depthwise_conv2d(X,Wg,padding='same'), K.depthwise_conv2d(Y,Wg,padding='same')
-    return (2*UX*UY+C1)/(K.square(UX)+K.square(UY)+C1)
+    def l(scale):
+        Wg = Kfgauss(M,scale,channels)
+        UX, UY = K.depthwise_conv2d(X,Wg,padding='same'), K.depthwise_conv2d(Y,Wg,padding='same')
+        return (2*UX*UY+C1)/(K.square(UX)+K.square(UY)+C1)
 
-  def cs(scale):
-    Wg = Kfgauss(M,scale,channels)
-    UX, UY = K.depthwise_conv2d(X,Wg,padding='same'), K.depthwise_conv2d(Y,Wg,padding='same')
-    SDX = K.depthwise_conv2d(K.square(X) ,Wg,padding='same') - K.square(UX)
-    SDY = K.depthwise_conv2d(K.square(Y) ,Wg,padding='same') - K.square(UY)
-    CXY = K.depthwise_conv2d( X*Y        ,Wg,padding='same') -        UX*UY
-    return (2*CXY+C2)/(SDX+SDY+C2)
+    def cs(scale):
+        Wg = Kfgauss(M,scale,channels)
+        UX, UY = K.depthwise_conv2d(X,Wg,padding='same'), K.depthwise_conv2d(Y,Wg,padding='same')
+        SDX = K.depthwise_conv2d(K.square(X) ,Wg,padding='same') - K.square(UX)
+        SDY = K.depthwise_conv2d(K.square(Y) ,Wg,padding='same') - K.square(UY)
+        CXY = K.depthwise_conv2d( X*Y        ,Wg,padding='same') -        UX*UY
+        return (2*CXY+C2)/(SDX+SDY+C2)
 
-  def L1(scale):
-    Wg = Kfgauss(M,scale,channels)
-    return K.abs(X-Y)*K.max(Wg)
+    def L1(scale):
+        Wg = Kfgauss(M,scale,channels)
+        return K.abs(X-Y)*K.max(Wg)
 
-  MS_SSIM = l(M)**alpha
-  #min_scale, max_scale = 0.1,M
-  #r = (max_scale/min_scale)**(1/(M-1))
-  for i in range(1,M+1):
-    #i = min_scale * r**(i-1)
-    MS_SSIM *= (cs(i)**beta)
-  GL1  = L1(M)
-  return a * K.mean((1-MS_SSIM), axis=-1)  +  (1-a) * K.mean(GL1, axis=-1)
+    MS_SSIM = l(M)**alpha
+    #min_scale, max_scale = 0.1,M
+    #r = (max_scale/min_scale)**(1/(M-1))
+    for i in range(1,M+1):
+        #i = min_scale * r**(i-1)
+        MS_SSIM *= (cs(i)**beta)
+    GL1  = L1(M)
+    return a * K.mean((1-MS_SSIM), axis=-1)  +  (1-a) * K.mean(GL1, axis=-1)
+
+def ZERO_LOSS(y_true,y_pred):
+    return K.mean(y_pred,axis=-1)
+
+def categorical_crossentropy(y_true, y_pred):
+    return K.categorical_crossentropy(y_true, y_pred)
+
+def DIS_LOSS(y_true, y_pred):
+    return K.categorical_crossentropy(y_true, y_pred)
+
+def GEN_LOSS(y_true, y_pred):
+    y_pred = 1-y_pred
+    return K.categorical_crossentropy(y_true, y_pred)
 
 
-custom_losses = ('MIX',)
+custom_losses = ('MIX_LOSS','ZERO_LOSS','DIS_LOSS','GEN_LOSS',)
 
 ######## CUSTOM LOSS FUNCTIONS DEFINITIONS ENDS ########
+
+
+######## METRIC DEFINITIONS BEGINS ########
+
+def PSNR(y_true, y_pred):
+    return (10.0 * K.log((((1<<bit_depth)-1) ** 2) / (K.mean(K.square(y_pred - y_true))))) / K.log(10.0)
+
+def npPSNR(y_true, y_pred):
+    return (10.0 * np.log((((1<<bit_depth)-1) ** 2) / (np.mean(np.square(y_pred - y_true))))) / np.log(10.0)
+
+######## METRIC DEFINITIONS ENDS ########
+
+
+
+######## KERAS FUNCTIONS A UPDATE BEGINS ########
+
+keras_update_dict = {}
+for loss in custom_losses:
+    keras_update_dict[loss] = eval(loss)
+keras_update_dict['PSNR'] = eval('PSNR')
+get_custom_objects().update( keras_update_dict)
+
+######## KERAS FUNCTIONS A UPDATE ENDS ########
 
 
 
@@ -293,12 +396,20 @@ def dict_to_model_parse(config,*ip_shapes):
     return model
 
 
-def my_gan(generator,discriminator,content,*shapes):
+def my_gan(*shapes):
+    global generator_model, discriminator_model, content_model
+    if len(shapes)==1:  shapes = shapes+shapes
+    if len(shapes)==2:  shapes = shapes+(len(channel_indx),)
+    generator_model     = dict_to_model_parse( configs_dict[gen_choice],(shapes[0]//scale , shapes[1]//scale , shapes[2]) )
+    discriminator_model = dict_to_model_parse( configs_dict[dis_choice],(shapes[0]        , shapes[1]        , shapes[2]) )
+    content_model       = dict_to_model_parse( configs_dict[con_choice],(shapes[0]        , shapes[1]        , shapes[2]) )
+    generator_model.name = 'gen_output'
+
     X_lr   = Input(shapes[0],name='lr_input')
     X_hr   = Input(shapes[1],name='hr_input')
-    X_sr   = generator(X_lr)
-    
-    # Actual is given 0, fake is given 1
+
+    Y_sr   = generator(X_lr)    
+    # Actual is given 1, fake is given 0
     Y_dis_sr  = discriminator(X_sr)
     Y_dis_hr  = discriminator(X_hr)
     Y_dis     = Concatenate(name='dis_output')([Y_dis_sr,Y_dis_hr])
@@ -311,120 +422,62 @@ def my_gan(generator,discriminator,content,*shapes):
     Y_con  = Lambda( lambda x : x/memory_batch )             (Y_con)
     Y_con  = Lambda( lambda x : x**0.5 , name='con_output' ) (Y_con)
     
-    #
-    return Model(inputs=[X_lr,X_hr],outputs=[Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
+    return Model(inputs=[X_lr,X_hr],outputs=[Y_sr,Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
 
-generator_model     = dict_to_model_parse(configs_dict[gen_choice],(block_size//scale,block_size//scale,len(channel_indx)))
-discriminator_model = dict_to_model_parse(configs_dict[dis_choice],(block_size,       block_size,       len(channel_indx)))
-content_model       = dict_to_model_parse(configs_dict[con_choice],(block_size,       block_size,       len(channel_indx)))
+def freeze_model(model):
+    model.trainable = False
+    for layer in model.layers:
+        layer.trainable = False
 
-gan_model           = my_gan( generator_model , discriminator_model , content_model,
-    (block_size//scale,block_size//scale,3) , (block_size,block_size,3) )
+def unfreeze_model(model):
+    model.trainable = True
+    for layer in model.layers:
+        layer.trainable = True
 
-gan_model.compile(optimizer='rmsprop',
-              loss =         {dis_choice: 'categorical_crossentropy' , con_choice: 'zero_pred'},
-              loss_weights = {dis_choice: 1 ,                          con_choice: 1e-3})
+def compile_model(model,mode,opt):
+    if mode in ('cnn','gen'):
+        train_model , non_train_model = generator_model, discriminator_model
+        loss = { 'gen_output':'MSE' , 'dis_output':'GEN_LOSS' , 'con_output':'ZERO_LOSS' }
+        if mode=='cnn':
+            loss_weights = { 'gen_output':1 , 'dis_output':0 , 'con_output':0    }
+        elif mode=='gen':
+            loss_weights = { 'gen_output':0 , 'dis_output':1 , 'con_output':1e-3 }
+    elif mode=='dis':
+        non_train_model , train_model = generator_model, discriminator_model
+        loss = { 'gen_output':'MSE' , 'dis_output':'DIS_LOSS' , 'con_output':'ZERO_LOSS' }
+        loss_weights = { 'gen_output':0 , 'dis_output':1 , 'con_output':1e-3 }
+        
+    freeze_model(   content_model )
+    freeze_model(   non_train_model )
+    unfreeze_model( discriminator_model )
+    model.compile(  optimizer=opt , loss = loss , loss_weights = loss_weights )
+    freeze_model(   content_model )
+    freeze_model(   generator_model )
+    unfreeze_model( discriminator_model )
 
-X_train = get_data('DIV2K','train',indx=['LR','HR'],org=False)
 
-model.fit( { 'lr_input': X_train[0] , 'hr_input': X_train[1] } ,
-           { dis_choice: np.array([[0,1],]*len(X_train[0]),dtype=float_precision) , con_choice:np.array([None]*len(X_train[0])) },
-          epochs=50, batch_size=32)
-# And trained it via:
-model.fit({'main_input': headline_data, 'aux_input': additional_data},
-          {'main_output': labels, 'aux_output': labels},
-          epochs=50, batch_size=32)
+gan_model = my_gan( block_size )
+gan_model = compiled_model(gan_model,'cnn','Adam')
 
+
+X_train = get_data(data_name,'train',indx=['LR','HR'],org=False)
+
+train_input  = {
+    'lr_input'  :X_train[0] ,
+    'hr_input': X_train[1]
+    }
+train_output = {
+    'gen_output':X_train[1] ,
+    'dis_output':np.array([[0,1],]*len(X_train[0]),dtype=float_precision) ,
+    con_choice:np.array([None]*len(X_train[0]))
+    }
+
+model.fit( train_input , train_output,epochs=inner_epochs, batch_size=memory_batch)
 
 ######## MODELS DEFINITIONS ENDS ########
 
 
 
-######## DATA STORAGE, READING & PROCESSING FUNCTIONS BEGINS ########
-
-datasets = {} # Global Dataset Storage
-file_names = {} # Global filenames for disk_batching
-
-def check_and_gen(name,low_path,high_path):
-    "Checks for LR images in low_storage & create if doesn't exist"
-    for ph in ('train','valid','test'):
-        low_store  = os.path.join(low_path, name,ph)
-        high_store = os.path.join(high_path,name,ph)
-        if not os.path.isdir(low_store):
-            os.makedirs(low_store)
-        for file_name in os.listdir(high_store):
-            if not os.path.isfile(os.path.join(low_store,file_name)):
-                    clr = 'grayscale' if read_as_gray else 'rgb'
-                    image = load_img(os.path.join(high_store,file_name),color_mode=clr)
-                    image = image.resize( ((image.width//scale),(image.height//scale)) ,
-                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                    image.save(os.path.join(low_store,file_name))
-
-def on_fly_crop(mat,block_size=block_size,overlap=overlap):
-    "Crop images into patches, with explicit overlap"
-    ls = []
-    nparts1, nparts2 = int(np.ceil(mat.shape[0]/block_size)), int(np.ceil(mat.shape[1]/block_size))
-    step1, step2     = (mat.shape[0]-block_size)/(nparts1-1), (mat.shape[1]-block_size)/(nparts2-1)
-    step1, step2     = step1 - int(np.ceil(step1*overlap))  , step2 - int(np.ceil(step2*overlap))
-    for i in range(nparts1):
-        i = round(i*step1)
-        for j in range(nparts2):
-            j = round(j*step2)
-            ls.append( mat[i:i+block_size,j:j+block_size] )
-    return ls
-    
-def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, phase = 'train', erase_prev=False):
-    "feed the required fraction of dataset into memory for consumption by model"
-    global datasets
-    if erase_prev:
-        datasets = {}
-    check_and_gen(name,low_path,high_path)
-    for x in ('LR','HR'):
-        data_path = high_path if x=='HR' else low_path
-        if x not in datasets:
-            datasets[x] = {}
-        if name not in datasets:
-            datasets[x][name] = {}
-        for ph in ('train','valid','test'):
-            if ph not in datasets[x][name]:# All datasets be present, even if empty
-                datasets[x][name][ph] = []
-            if phase == ph:
-                for img_name in file_names[phase][lw_indx:up_indx]:
-                    clr = 'grayscale' if read_as_gray else 'rgb'
-                    image = load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr)
-                    image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
-                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                    # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
-                    img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-                    if crop_flag:
-                        datasets[x][name][phase].extend(on_fly_crop(img_mat,block_size//(1 if x=='HR' else scale),overlap))
-                    else:
-                        datasets[x][name][phase].append(img_mat)
-            #Converting into Numpy Arrays
-            datasets[x][name][phase] = np.array(datasets[x][name][phase])
-
-def normalize(mat,typ='HR'):
-    "Normalize image matrix into ranges given"
-    if str(mat.dtype)=='object':
-        val = np.array([ (i.astype(float_precision)/((1<<bit_depth)-1)) for i in mat])
-    else:
-        val = mat.astype(float_precision) / ((1<<bit_depth)-1)
-    return (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))*val + eval('min_{}'.format(typ))
-
-def backconvert(mat,typ='HR'):
-    mat = ( mat - eval('min_{}'.format(typ)) ) / (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))
-    mat = mat*((1<<bit_depth)-1)
-    return np.clip( mat.round(), 0, ((1<<bit_depth)-1) )
-
-def get_data(name,phase,indx=['LR','HR'],org=False): # Flag to get as uint8 or float values
-    res = []
-    for x in indx:
-        res.append( datasets[x][name][phase] )
-        if not org:
-            res[-1] = normalize(res[-1],x)
-    return res if len(res)>1 else res[0]
-
-######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
 
 
 
@@ -492,34 +545,38 @@ pass
 ''' TRAINING CODE SECTION BEGINS '''
 
 if train_flag:
-    file_names['train'] = sorted(os.listdir(os.path.join(high_path,'train')))
-    file_names['valid'] = sorted(os.listdir(os.path.join(high_path,'valid')))
+    train(data_name,train_strategy,(1,1))
 
-    n_disk_batches = disk_batches_limit if (disk_batches_limit is not None) else int(np.ceil(len(file_names['train'])/disk_batch))
+def train(name,train_strategy,gen_dis_ratio=(1,1)):
+    if name not in file_names:
+        file_names[name] = {}
+    file_names[name]['train'] = sorted(os.listdir(os.path.join(high_path,name,'train')))
+    file_names[name]['valid'] = sorted(os.listdir(os.path.join(high_path,name,'valid')))
+
+    n_disk_batches = disk_batches_limit if (disk_batches_limit is not None) else int(np.ceil(len(file_names[name]['train'])/disk_batch))
 
     print('\nOuter Epochs {} Disk Batches {}'.format(outer_epochs,n_disk_batches))
     # Building Model
+    '''
     if custom_model:
         model = dict_to_model_parse( configs_dict[model_choice], (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
     else:
         model = baseline( (block_size,block_size,len(channel_indx)),(block_size,block_size,1) ) # [(m*b*b*c),(m*b*b*1)]
-
-    if   optimizer == 'Adam':
+    '''
+    gan_model = my_gan( block_size )
+    if optimizer == 'Adam':
         opt = keras.optimizers.Adam( lr=lr, decay=decay )
     elif optimizer == 'SGD':
         opt = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
     else:
         raise Exception('Unexpected Optimizer than two classics')
 
-    if loss in custom_losses:
-      model.compile(optimizer=opt, loss=eval(loss), metrics=[PSNR])
-    else:
-      model.compile(optimizer=opt, loss=loss, metrics=[PSNR])
-    model_path = os.path.join(save_dir, model.name)
+    compiled_model(gan_model,train_strategy,opt)
+    model_path = os.path.join(save_dir, gan_model.name)
 
-    if os.path.isdir(save_dir) and model.name in os.listdir(save_dir):
+    if os.path.isdir(save_dir) and gan_model.name in os.listdir(save_dir):
         if prev_model:
-            model = keras.models.load_model(model_path,custom_objects={'PSNR':PSNR,'MIX':MIX})
+            model = keras.models.load_model(model_path,custom_objects=keras_update_dict)
         else:
             os.remove(model_path)
 
