@@ -12,12 +12,14 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
     
 ## Reference Network Architectures
-Generator & Discriminator Network of SRGAN
-<img src="Architecture_images/srgan_architecture.PNG" alt="Generator & Discriminator Network of SRGAN" style="width: 100%;height: auto;" ></img>
-Generator Network of E-SRGAN
-![Generator Network of E-SRGAN](Architecture_images/e_srgan_architecture.PNG)
-Basic Block of E-SRGAN Generator Network
-![Basic Block of E-SRGAN Generator Network](Architecture_images/e_srgan_RRDB.PNG)
+Generator & Discriminator Network of SRGAN<br>
+<img src="./images/srgan_architecture.PNG" alt="Generator & Discriminator Network of SRGAN" style="width: 100%;height: auto;" ></img>
+
+Generator Network of E-SRGAN<br>
+![Generator Network of E-SRGAN](./images/e_srgan_architecture.PNG)
+
+Basic Block of E-SRGAN Generator Network<br>
+![Basic Block of E-SRGAN Generator Network](./images/e_srgan_RRDB.PNG)
     
 
 ## Network Details
