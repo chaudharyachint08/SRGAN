@@ -8,18 +8,15 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
 
 ## Concept Diagram    
-![Concept Diagram](images/BaseTrans.png)
-
+<img src="./images/BaseTrans.PNG" alt="Concept Diagram" style="width: 100%;height: auto;" ></img>
     
 ## Reference Network Architectures
-Generator & Discriminator Network of SRGAN<br>
-<img src="./images/srgan_architecture.PNG" alt="Generator & Discriminator Network of SRGAN" style="width: 100%;height: auto;" ></img>
-
-Generator Network of E-SRGAN<br>
-![Generator Network of E-SRGAN](./images/e_srgan_architecture.PNG)
-
-Basic Block of E-SRGAN Generator Network<br>
-![Basic Block of E-SRGAN Generator Network](./images/e_srgan_RRDB.PNG)
+#### Generator & Discriminator Network of SRGAN<br>
+<img src="./images/srgan_architecture.PNG"   style="width: 100%;height: auto;" alt="Generator & Discriminator Network of SRGAN" ></img><br>
+#### Generator Network of E-SRGAN<br>
+<img src="./images/e_srgan_architecture.PNG" style="width: 100%;height: auto;" alt="Generator Network of E-SRGAN"               ></img><br>
+#### Basic Blocks of E-SRGAN Generator Network<br>
+<img src="./images/e_srgan_RRDB.PNG"         style="width: 100%;height: auto;" alt="Basic Blocks of E-SRGAN Generator Network"  ></img><br>
     
 
 ## Network Details
@@ -45,16 +42,16 @@ Basic Block of E-SRGAN Generator Network<br>
 
 
 ## Implementation
--[x] Data reading & LR generation, with support for heterogenous & multiformat images
--[x] Usage of Model API for model as layer, dictionary based arguments & non-comparative model training 
--[x] GAN model generator with sub-model generation, and configuring layers for model API
--[x] Disk batching for control over memory usage by limited amount of data feeding
--[x] MIX loss function with its Adaptive variant
--[x] Model parser function for easier prototyping
--[x] Plotting functions for Training progress
--[ ] Data augmentation    
--[ ] Attention Mechanism in GAN
--[ ] Network Interpolation
+- [x] Data reading & LR generation, with support for heterogenous & multiformat images
+- [x] Usage of Model API for model as layer, dictionary based arguments & non-comparative model training 
+- [x] GAN model generator with sub-model generation, and configuring layers for model API
+- [x] Disk batching for control over memory usage by limited amount of data feeding
+- [x] MIX loss function with its Adaptive variant
+- [x] Model parser function for easier prototyping
+- [x] Plotting functions for Training progress
+- [ ] Data augmentation    
+- [ ] Attention Mechanism in GAN
+- [ ] Network Interpolation
 
            
 ## Learning
@@ -63,8 +60,15 @@ Basic Block of E-SRGAN Generator Network<br>
 - Data sollection is an import aspect, using images with high quality data, quality above quantity, as we have augmentation.
 
 
-## Output
-![Outputs](./images/output.PNG)
+## Results
+### Sample Table
+First Header | Second Header | Third Header
+------------ | :-------------: | ------------:
+cell 1 |  cell 2 | cell 3
+
+
+## Outputs
+<img src="./images/outputs.PNG"         style="width: 100%;height: auto;" alt="outputs"  ></img><br>
 
 
 ## Usage
@@ -72,30 +76,21 @@ Basic Block of E-SRGAN Generator Network<br>
 
 
 ## References
-Papers
-- Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network
-https://arxiv.org/pdf/1609.04802.pdf
-- ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks
-https://arxiv.org/abs/1809.00219
-- Perceptual Losses for Real-Time Style Transfer and Super-Resolution
-https://cs.stanford.edu/people/jcjohns/papers/eccv16/JohnsonECCV16.pdf
-- Efficient Super Resolution For Large-Scale Images Using Attentional GAN
-https://arxiv.org/pdf/1812.04821.pdf
+#### Papers
+- [Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network](https://arxiv.org/abs/1609.04802)
+- [ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks](https://arxiv.org/abs/1809.00219)
+- [Perceptual Losses for Real-Time Style Transfer and Super-Resolution](https://cs.stanford.edu/people/jcjohns/papers/eccv16/JohnsonECCV16.pdf)
+- [Efficient Super Resolution For Large-Scale Images Using Attentional GAN](https://arxiv.org/abs/1812.04821)
 
-Projects doing the same things
--[1] https://github.com/titu1994/Super-Resolution-using-Generative-Adversarial-Networks
--[2] https://github.com/brade31919/SRGAN-tensorflow
--[3] https://github.com/MathiasGruber/SRGAN-Keras
--[4] https://github.com/tensorlayer/srgan
+#### Projects doing the same things
+1. https://github.com/titu1994/Super-Resolution-using-Generative-Adversarial-Networks
+2. https://github.com/brade31919/SRGAN-tensorflow
+3. https://github.com/MathiasGruber/SRGAN-Keras
+4. https://github.com/tensorlayer/srgan
  
-Help on GANS
-https://github.com/eriklindernoren/Keras-GAN (Various GANS implemented in Keras including SRGAN)
-
-VGG loss help:
-https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5
-    
-Improved Techniques for Training GANs:
-https://arxiv.org/abs/1606.03498
+<br>[Various GANS implemented in Keras including SRGAN](https://github.com/eriklindernoren/Keras-GAN)
+<br>[VGG loss help](https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5)
+<br>[Improved Techniques for Training GANs](https://arxiv.org/abs/1606.03498)
 
 
 ## Requirements
