@@ -6,7 +6,7 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
 
 ## Concept Diagram    
-<img src="./images/BaseTrans.PNG" alt="Concept Diagram" style="width: 100%;height: auto;" ></img>
+<img src="./images/BaseTrans.png" alt="Concept Diagram" style="width: 100%;height: auto;" ></img>
     
 ## Reference Network Architectures
 #### Generator & Discriminator Network of SRGAN<br>
@@ -109,4 +109,4 @@ You will need the following to run the above:
 <a/>
 
 <!--https://gist.github.com/rxaviers/7360908-->
-For training: A Good performing GPU :stuck_out_tongue_winking_eye:
+Essential Hardware Requirement: A decent NVIDIA GPU :stuck_out_tongue_winking_eye:
