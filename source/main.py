@@ -12,7 +12,7 @@ for i in ls:
     exec('import {0}'.format(i))
     exec('print("Version of {0}",{0}.__version__)'.format(i))
 
-import keras
+import keras, tensorflow as tf
 # Keras models, sequential & much general functional API
 from keras.models import Sequential, Model
 # Core layers
@@ -145,9 +145,11 @@ globals().update(args.__dict__)
 
 ######## CUSTOM IMPORTS AFTER COMMAND LINE ARGUMENTS PARSING BEGINS ########
 
+from myutils import PixelShuffle, DePixelShuffle
 import models_collection
 models_collection.initiate(globals())
 from models_collection import configs_dict
+
 
 ######## CUSTOM IMPORTS AFTER COMMAND LINE ARGUMENTS PARSING ENDS ########
 
@@ -350,7 +352,7 @@ get_custom_objects().update( keras_update_dict)
 
 def dict_to_model_parse(config,*ip_shapes):
     # These names are to be used in defining dictionaries
-    all_lyr_typs = ('dense','actvn','drpot','flltn','input','reshp','lmbda','spdrp','convo','usmpl','zpdng','poolg','merge','aactv','btnrm','block','clpre')
+    all_lyr_typs = ('dense','actvn','drpot','flttn','input','reshp','lmbda','spdrp','convo','usmpl','zpdng','poolg','merge','aactv','btnrm','block','clpre')
     for lyr_typ in all_lyr_typs:
         config[lyr_typ] = [ tuple(sorted(i)) for i in config[lyr_typ]  ] if lyr_typ in config else []
     if config['clpre']: # if ContentLayersModel is defined, then no other architecture is there to setup
@@ -368,9 +370,12 @@ def dict_to_model_parse(config,*ip_shapes):
                 if target in ls: # Which layer type is to be constructed and its index in category
                     cat_ix = ls.index(target)
                     break
-            lyr_args = config[lyr_typ+'_par'][cat_ix] # Collecting argumenst to pass while construction layer
+            try:
+                lyr_args = config[lyr_typ+'_par'][cat_ix] # Collecting argumenst to pass while construction layer
+            except:
+                lyr_args = {}
             # Core layers are only individual in theri category, so no mention can be used directly
-            core_lyrs = { 'dense':'Dense', 'actvn':'Activation', 'drpot':'Dropout', 'flltn':'Flatten',
+            core_lyrs = { 'dense':'Dense', 'actvn':'Activation', 'drpot':'Dropout', 'flttn':'Flatten',
                 'input':'Input', 'reshp':'Reshape', 'lmbda':'Lambda', 'spdrp':'SpatialDropout2D' }
             multi_input_lyr, nxt_lyr = False, None # if layer has multiple inputs (MERGE/BLOCK)
             if   lyr_typ in core_lyrs:
@@ -396,9 +401,9 @@ def dict_to_model_parse(config,*ip_shapes):
             if nxt_lyr is None:
                 nxt_lyr  = eval( '{}({})'.format( lyr_spec , ','.join('{}={}'.format(x,lyr_args[x]) for x in lyr_args) ) )
                 if multi_input_lyr:
-                    tensors.append(  nxt_lyr( [ tensors[x] for x in config[lyr_typ+'_con'][cat_ix][:-1] ] ) )
+                    tensors.append(  nxt_lyr( [ tensors[x] for x in config[lyr_typ][cat_ix][:-1] ] ) )
                 else:
-                    tensors.append(  nxt_lyr( tensors[ config[lyr_typ+'_con'][cat_ix][-1] ] ) )
+                    tensors.append(  nxt_lyr( tensors[ config[lyr_typ][cat_ix][-1] ] ) )
             if nxt_lyr is None: # no layer is chosen, as target doesnot exist to be made in any layer
                 break
             target += 1
