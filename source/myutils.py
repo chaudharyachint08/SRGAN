@@ -3,43 +3,55 @@ from keras.layers import Layer
 
 
 class PixelShuffle(Layer):
-
+    "Merges Separate Convolutions into Neighborhoods, increasing image size"
     def __init__(self, size=2, **kwargs):
         super(PixelShuffle, self).__init__(**kwargs)
         self.supports_masking = True
         self.size = size
-
     def call(self, inputs):
         return tf.depth_to_space(inputs,block_size=self.size)
-
     def get_config(self):
         config = {'size': float(self.size)}
         base_config = super(PixelShuffle, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
     def compute_output_shape(self, input_shape):
         return (input_shape[0],)+(input_shape[1]*self.size,)+(input_shape[2]*self.size,)+(input_shape[3]//self.size**2,)
 
-
 class DePixelShuffle(Layer):
-
+    "Creates Separate Convolutions from Neighborhoods, decreasing image size"
     def __init__(self, size=2, **kwargs):
         super(DePixelShuffle, self).__init__(**kwargs)
         self.supports_masking = True
         self.size = size
-
     def call(self, inputs):
         return tf.space_to_depth(inputs,block_size=self.size)
-
     def get_config(self):
         config = {'size': float(self.size)}
         base_config = super(DePixelShuffle, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
     def compute_output_shape(self, input_shape):
         return (input_shape[0],)+(input_shape[1]//self.size,)+(input_shape[2]//self.size,)+(input_shape[3]*self.size**2,)
 
 
+class WeightedSumLayer(Layer):
+	"Weighted sum of multiple convolutions, behaviour similar to merge layers"
+    def __init__(self, **kwargs):
+        super(MyLayer, self).__init__(**kwargs)
+    def build(self, input_shape):
+        assert isinstance(input_shape, list)
+        # Create a trainable weight variable for this layer.
+        self.kernel = self.add_weight( name='kernel' , shape=(len(input_shape), 1) , initializer='glorot_uniform' , trainable=True)
+        super(MyLayer, self).build(input_shape)  # Be sure to call this at the end
+    def call(self, inputs):
+        assert isinstance(inputs, list)
+        inputs = tf.convert_to_tensor(inputs)
+        inputs = K.transpose(inputs)
+        output = K.dot(inputs, self.kernel)
+        output = K.transpose(output)[0]
+        return output
+    def compute_output_shape(self, input_shape):
+        assert isinstance(input_shape, list)
+        return input_shape[0]
 
 
 

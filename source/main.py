@@ -145,7 +145,7 @@ globals().update(args.__dict__)
 
 ######## CUSTOM IMPORTS AFTER COMMAND LINE ARGUMENTS PARSING BEGINS ########
 
-from myutils import PixelShuffle, DePixelShuffle
+from myutils import PixelShuffle, DePixelShuffle, WeightedSumLayer
 import models_collection
 models_collection.initiate(globals())
 from models_collection import configs_dict
