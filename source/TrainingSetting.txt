@@ -1,0 +1,39 @@
+SRGAN - 2017
+Training on 350k ImageNet images
+Testing  on Set5, Set14, BSD100, BSD300
+Each mini batch has 16 Random patches of 96x96 HR patches from each trainig image
+
+16 is depth of Generator they tested performance
+
+SRResNet (PSNR) Training
+1e-4 1e5 iterations
+1e-5 1e5 iterations
+
+SRGAN (Perceptual) Training
+1e-1 1e6 Iterations
+content loss scale 1/12.75, adversarial loss by 1e-3
+Phi(i,j) is not defined properly in this paper
+
+
+
+E-SRGAN
+Training on DIV2K, Flickr2K and OutdoorSceneTraining (DIV2F, which merged of starting two)
+Testing on Set5, Set14, BSD100, PIRM self-validation set
+
+16 and 23 are depth of Generator they tested performance, each RRDB has 3 same structured components
+
+1. RRDB (Residual in Residual Dense Block)
+2. Relativistic Discriminator
+3. VGG maps before activation (improved brightness supervision & texture recovery),
+4. BatchNormalization removed, and (residual scaling(0.2) + small_initialization(0.1))
+as w/o BN training becomes more difficult & Networks get stuck in local optima
+5. Loss has Content, Adversarial and (also) L1 norm, which is not there in SRGAN
+
+PSNR Training
+L1 loss, with lr = 2e-4 decayed by factor of 2 after every 2e5 minibatches
+
+Perceptual Training
+loss weights = [1,5e-3,1e-2] with lr = 1e-4 halfed after [50,100,200,300]k iterations
+
+Note: Network Interpolation experiments will not be done for now
+

@@ -24,7 +24,7 @@ def initiate(dct):
     except: # If 'advanced_activations' is not found
         pass
     
-    B = 5 # residual blocks in SRGAN architecture
+    B = 5 # residual blocks in SRGAN architecture, papaer has B=16
 
     def gen_residual_blocks(X_input):
         X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1))(X_input[0])
@@ -92,7 +92,7 @@ def initiate(dct):
         'name'     :'baseline_con',
         'cipre'    :['vgg19',],
         'cipre_sub':['vgg19',],
-        'cipre_sub':['block4_conv4',],
+        'cipre_sub':['block5_conv4',],
         }
 
 
