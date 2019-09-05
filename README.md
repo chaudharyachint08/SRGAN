@@ -1,5 +1,3 @@
-.responsive 
-
 # SuperResolution-Keras
 
 
@@ -81,16 +79,23 @@ cell 1 |  cell 2 | cell 3
 - [ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks](https://arxiv.org/abs/1809.00219)
 - [Perceptual Losses for Real-Time Style Transfer and Super-Resolution](https://cs.stanford.edu/people/jcjohns/papers/eccv16/JohnsonECCV16.pdf)
 - [Efficient Super Resolution For Large-Scale Images Using Attentional GAN](https://arxiv.org/abs/1812.04821)
+<a/>
 
-#### Projects doing the same things
-1. https://github.com/titu1994/Super-Resolution-using-Generative-Adversarial-Networks
-2. https://github.com/brade31919/SRGAN-tensorflow
-3. https://github.com/MathiasGruber/SRGAN-Keras
-4. https://github.com/tensorlayer/srgan
- 
-<br>[Various GANS implemented in Keras including SRGAN](https://github.com/eriklindernoren/Keras-GAN)
-<br>[VGG loss help](https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5)
-<br>[Improved Techniques for Training GANs](https://arxiv.org/abs/1606.03498)
+#### Helpful Resources
+- [Getting started with the Keras functional API](https://keras.io/getting-started/functional-api-guide/)
+- [VGG usage in keras](https://machinelearningmastery.com/use-pre-trained-vgg-model-classify-objects-photographs/)
+- [Various GANS implemented in Keras including SRGAN](https://github.com/eriklindernoren/Keras-GAN)
+- [VGG loss help](https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5)
+- [Improved Techniques for Training GANs](https://arxiv.org/abs/1606.03498)<br>
+<a/>
+
+#### Similar Projects
+- https://github.com/titu1994/Super-Resolution-using-Generative-Adversarial-Networks
+- https://github.com/brade31919/SRGAN-tensorflow
+- https://github.com/MathiasGruber/SRGAN-Keras
+- https://github.com/tensorlayer/srgan
+<a/> 
+
 
 
 ## Requirements
@@ -101,4 +106,7 @@ You will need the following to run the above:
 - Version of h5py 2.8.0
 - Version of keras 2.2.5
 - Version of PIL 4.3.0    
-For training: Good GPU
+<a/>
+
+<!--https://gist.github.com/rxaviers/7360908-->
+For training: A Good performing GPU :stuck_out_tongue_winking_eye:
