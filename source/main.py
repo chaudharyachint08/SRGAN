@@ -73,8 +73,8 @@ parser.add_argument("--max_LR"             , type=eval , dest='max_LR'          
 parser.add_argument("--min_HR"             , type=eval , dest='min_HR'             , default=-1)
 parser.add_argument("--max_HR"             , type=eval , dest='max_HR'             , default=1)
 parser.add_argument("--bit_depth"          , type=eval , dest='bit_depth'          , default=8)
-parser.add_argument("--outer_epochs"       , type=eval , dest='outer_epochs'       , default=5)
-parser.add_argument("--inner_epochs"       , type=eval , dest='inner_epochs'       , default=2)
+parser.add_argument("--outer_epochs"       , type=eval , dest='outer_epochs'       , default=1)
+parser.add_argument("--inner_epochs"       , type=eval , dest='inner_epochs'       , default=1)
 parser.add_argument("--disk_batch"         , type=eval , dest='disk_batch'         , default=20)
 parser.add_argument("--memory_batch"       , type=eval , dest='memory_batch'       , default=32)
 parser.add_argument("--disk_batches_limit" , type=eval , dest='disk_batches_limit' , default=None)
@@ -116,7 +116,7 @@ parser.add_argument("--high_path"          , type=str , dest='high_path'        
 parser.add_argument("--low_path"           , type=str , dest='low_path'            , default=os.path.join('.','..','data','LR'))
 parser.add_argument("--gen_path"           , type=str , dest='gen_path'            , default=os.path.join('.','..','data','SR'))
 parser.add_argument("--save_dir"           , type=str , dest='save_dir'            , default=os.path.join('.','..','saved_models'))
-parser.add_argument("--plot_dir"           , type=str , dest='plot_dir'            , default=os.path.join('.','..','training_plots'))
+parser.add_argument("--plots"              , type=str , dest='plots'               , default=os.path.join('.','..','training_plots'))
 # parser.add_argument("--loss"             , type=str , dest='loss'                , default='MSE')
 parser.add_argument("--resize_interpolation"   , type=str  , dest='resize_interpolation'   , default='BICUBIC')
 parser.add_argument("--upsample_interpolation" , type=str  , dest='upsample_interpolation' , default='bicubic')
@@ -258,8 +258,10 @@ def get_IPSNR(true_tensor,pred_tensor,pred_mode='HR'):
                 pred_img = pred_img.resize( ((pred_img.width*scale),(pred_img.height*scale)) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                 pred_img = img_to_array(pred_img)
-            avg_PSNR[0] += npPSNR(true_img,pred_img)
-            avg_PSNR[1] += 1
+            val = npPSNR(true_img,pred_img)
+            if val!=float('inf'):
+                avg_PSNR[0] += val
+                avg_PSNR[1] += 1
     return (avg_PSNR[0]/(avg_PSNR[1]) if avg_PSNR[1] else avg_PSNR[0])
 
 ######## METRIC DEFINITIONS ENDS ########
@@ -463,7 +465,7 @@ def compile_model(model,mode,opt):
 ######## PLOTTING FUNCTIONS BEGINS HERE ########
 
 def plot_history(history):
-    plot_dir =  os.path.join(plot_dir,gan_model.name)
+    plot_dir =  os.path.join(plots,gan_model.name)
     if not os.path.isdir(plot_dir):
         try:
             shutil.rmtree(plot_dir)
@@ -695,7 +697,7 @@ if __name__ == '__main__':
     if train_flag:
         train(data_name,train_strategy,(1,1))
     if test_flag:
-        test(data_name)
+        pass #test(data_name)
 
 
 ''' UNUSED CODE SECTION BEGINS '''
