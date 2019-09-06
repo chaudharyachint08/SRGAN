@@ -57,9 +57,9 @@ from matplotlib.ticker import StrMethodFormatter
 parser = argparse.ArgumentParser()
 
 # Bool Type Arguments
+parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
 parser.add_argument("--train"              , type=eval , dest='train_flag'         , default=True)
 parser.add_argument("--test"               , type=eval , dest='test_flag'          , default=True)
-parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=True)
 parser.add_argument("--read_as_gray"       , type=eval , dest='read_as_gray'       , default=False)
 parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=True)
 parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=True)
@@ -111,7 +111,7 @@ parser.add_argument("--attention"          , type=str , dest='attention'        
 parser.add_argument("--precision"          , type=str , dest='float_precision'     , default='float32')
 parser.add_argument("--optimizer"          , type=str , dest='optimizer'           , default='Adam')
 parser.add_argument("--name"               , type=str , dest='data_name'           , default='sample')
-parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='gan') # other is 'gan'
+parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='cnn') # other is 'gan'
 parser.add_argument("--high_path"          , type=str , dest='high_path'           , default=os.path.join('.','..','data','HR'))
 parser.add_argument("--low_path"           , type=str , dest='low_path'            , default=os.path.join('.','..','data','LR'))
 parser.add_argument("--gen_path"           , type=str , dest='gen_path'            , default=os.path.join('.','..','data','SR'))
@@ -428,15 +428,20 @@ def my_gan(*shapes):
     Y_con  = Lambda( lambda x : K.square(x), name='content' ) (Y_con)
     return Model(inputs=[X_lr,X_hr],outputs=[Y_sr,Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
 
-def freeze_model(model):
+
+def freeze_model(model,recursive=False):
     model.trainable = False
     for layer in model.layers:
         layer.trainable = False
+        if isinstance(layer, Model) and recursive:
+            freeze_model(layer,recursive)
 
-def unfreeze_model(model):
+def unfreeze_model(model,recursive=False):
     model.trainable = True
     for layer in model.layers:
         layer.trainable = True
+        if isinstance(layer, Model) and recursive:
+            unfreeze_model(layer,recursive)
 
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
@@ -499,6 +504,20 @@ pass
 ######## LEARNING RATE SCHEDULES BEGINS HERE ########
 
 
+######## MODEL SAVING AND LOADING FUNCTIONS BEGINS HERE ########
+
+def my_model_save(model,name):
+    with open("{}.json".format(name), "w") as json_file:
+        json_file.write( model.to_json() )
+    model.save_weights("{}.hdf5".format(name))
+
+def my_model_load(model,name):
+    model.load_weights(name)
+
+
+######## MODEL SAVING AND LOADING FUNCTIONS BEGINS HERE ########
+
+
 # Building GAN model based on choices for both Training & Testing phase
 gan_model = my_gan( patch_size )
 
@@ -528,7 +547,8 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     gan_model_path = os.path.join(save_dir, gan_model.name)
     if os.path.isdir(save_dir) and gan_model.name in os.listdir(save_dir):
         if prev_model:
-            gan_model.load_weights(gan_model_path)
+            my_model_load( gan_model , gan_model_path )
+            # gan_model.load_weights(gan_model_path)#,custom_objects=keras_update_dict)
         else:
             os.remove(gan_model_path)
 
@@ -626,8 +646,11 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 if not os.path.isdir(save_dir):
                     os.mkdir(save_dir)
                 try:
-                    gan_model.save(gan_model_path)
-                    generator_model.save(os.path.join(save_dir,gen_choice))
+                    freeze_model(gan_model,recursive=True)
+                    my_model_save( gan_model       , gan_model_path                    )
+                    my_model_save( generator_model , os.path.join(save_dir,gen_choice) )
+                    # gan_model.save(gan_model_path)
+                    # generator_model.save(os.path.join(save_dir,gen_choice))
                 except:
                     print('Model Cannot be Saved')
                 else:
@@ -658,10 +681,10 @@ def test(name):
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
     if os.path.isdir(save_dir) and gen_choice in os.listdir(save_dir):
-        new_generator_model.load_weights(generator_model_path)
+        new_generator_model.load_weights( '.hdf5'.format(generator_model_path) )
     print('Time to Load Weights',datetime.now()-init) # profiling
     if imwrite:
-        gen_store = os.path.join(gen_path,name)
+        gen_store = os.path.join(gen_path+train_strategy,name)
         try:
             shutil.rmtree(gen_store)
             os.makedirs(gen_store)
@@ -694,7 +717,7 @@ def test(name):
         if imwrite and bit_depth==8:
             init = datetime.now()
             img = Image.fromarray( backconvert(y_pred[0],typ='HR').astype('uint8') )
-            img.save( os.path.join(gen_store+train_strategy,'{}.PNG'.format(file_names[name]['test'][i])) )
+            img.save( os.path.join(gen_store,'{}.PNG'.format(file_names[name]['test'][i])) )
             print('Time to Write Image',datetime.now()-init) # profiling
         del x_test, y_test, y_pred, datasets['LR'][name]['test'], datasets['HR'][name]['test']
 
