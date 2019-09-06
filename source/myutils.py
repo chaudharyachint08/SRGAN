@@ -15,7 +15,10 @@ class PixelShuffle(Layer):
         base_config = super(PixelShuffle, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
     def compute_output_shape(self, input_shape):
-        return (input_shape[0],)+(input_shape[1]*self.size,)+(input_shape[2]*self.size,)+(input_shape[3]//self.size**2,)
+        try:
+            return (input_shape[0],)+(input_shape[1]*self.size,)+(input_shape[2]*self.size,)+(input_shape[3]//self.size**2,)
+        except:
+            return (input_shape[0],)+(None,)+(None,)+(input_shape[3]//self.size**2,)
 
 class DePixelShuffle(Layer):
     "Creates Separate Convolutions from Neighborhoods, decreasing image size"
@@ -30,11 +33,14 @@ class DePixelShuffle(Layer):
         base_config = super(DePixelShuffle, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
     def compute_output_shape(self, input_shape):
-        return (input_shape[0],)+(input_shape[1]//self.size,)+(input_shape[2]//self.size,)+(input_shape[3]*self.size**2,)
+        try:
+            return (input_shape[0],)+(input_shape[1]//self.size,)+(input_shape[2]//self.size,)+(input_shape[3]*self.size**2,)
+        except:
+            return (input_shape[0],)+(None,)+(None,)+(input_shape[3]//self.size**2,)
 
 
 class WeightedSumLayer(Layer):
-	"Weighted sum of multiple convolutions, behaviour similar to merge layers"
+    "Weighted sum of multiple convolutions, behaviour similar to merge layers"
     def __init__(self, **kwargs):
         super(MyLayer, self).__init__(**kwargs)
     def build(self, input_shape):

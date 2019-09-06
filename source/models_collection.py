@@ -14,7 +14,6 @@ def initiate(dct):
             exec( 'global {}; {} = dct[{}]'.format(i,i,repr(i)) )
         except: # If any variable cannot be assigned as it is 
             pass
-
     try:
         for i in dct['advanced_activations']:
             try:
@@ -23,20 +22,19 @@ def initiate(dct):
                 pass
     except: # If 'advanced_activations' is not found
         pass
-    
-    B = 5 # residual blocks in SRGAN architecture, papaer has B=16
 
-    def gen_residual_blocks(X_input):
-        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1))(X_input[0])
+
+    def gen_residual_block(X_input):
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
         X = BatchNormalization()(X)
         X = PReLU(shared_axes=(1,2))(X)
-        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1))(X)
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X)
         X = BatchNormalization()(X)
         X = Add()([X,X_input[0]])
         return X
 
     def gen_last_block(X_input):
-        X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1))(X_input[0])
+        X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
         # X = UpSampling(  size=2) (X)
         X = PixelShuffle(size=2)(X)
         X = PReLU(shared_axes=(1,2))(X)
@@ -45,7 +43,7 @@ def initiate(dct):
     baseline_gen = {
         'name'      :'baseline_gen',
         # Convolution Links
-        'convo'    :[(0,1),(2*B+1,2*B+2),(2*B+6,2*B+7),],
+        'convo'    :[(0,1),(B+2,B+3),(B+7,B+8),],
         'convo_sub':['Conv2D','Conv2D','Conv2D',],
         'convo_par':[{'filters':64,'kernel_size':(9,9),'padding':repr('same')},
                      {'filters':64,'kernel_size':(3,3),'padding':repr('same')},
@@ -55,12 +53,12 @@ def initiate(dct):
         'aactv_sub':['PReLU',],
         'aactv_par':[{'shared_axes':(1,2)},],
         # Block Links
-        'block'    :[((i+1)*2,(i+1)*2+1)  for i in range(B)] + [(2*B+4+i,2*B+4+i+1) for i in range(2)],
-        'block_sub':['gen_residual_block' for i in range(B)] + ['gen_last_block'    for i in range(2)],
+        'block'    :[(2+i,2+i+1)          for i in range(B)] + [(B+5+i,B+5+i+1)  for i in range(2)],
+        'block_sub':['gen_residual_block' for i in range(B)] + ['gen_last_block' for i in range(2)],
         # BatchNormalization Links
-        'btnrm'    :[(2*B+2,2*B+3),],
+        'btnrm'    :[(B+3,B+4),],
         # Merge Links
-        'merge'    :[(2,2*B+3,2*B+4),],
+        'merge'    :[(2,B+4,B+5),],
         'merge_sub':['Add'],
         }
 
@@ -92,7 +90,8 @@ def initiate(dct):
         'name'     :'baseline_con',
         'cipre'    :['vgg19',],
         'cipre_sub':['vgg19',],
-        'cipre_sub':['block5_conv4',],
+        'cipre_out':['block5_conv4'], # Which layer to use
+        'cipre_act':[True],           # If to use last activation or now
         }
 
 
