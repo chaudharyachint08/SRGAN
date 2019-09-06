@@ -34,7 +34,7 @@ from keras.layers import BatchNormalization
 # Vgg19 for Content loss applications
 from keras.applications.vgg19 import VGG19, preprocess_input as vgg19_preprocess_input
 # keras image usage functions
-from keras.preprocessing.image import load_img, img_to_array
+from keras.preprocessing.image import load_img, img_to_array, ImageDataGenerator
 # Keras custom objects in which we will add custom losses and metrics
 from keras.utils.generic_utils import get_custom_objects
 # Keras Backend for additional functionalities
@@ -59,9 +59,9 @@ parser = argparse.ArgumentParser()
 # Bool Type Arguments
 parser.add_argument("--train"              , type=eval , dest='train_flag'         , default=True)
 parser.add_argument("--test"               , type=eval , dest='test_flag'          , default=True)
-parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
+parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=True)
 parser.add_argument("--read_as_gray"       , type=eval , dest='read_as_gray'       , default=False)
-parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=False)
+parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=True)
 parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=True)
 parser.add_argument("--gclip"              , type=eval , dest='gclip'              , default=False)
 # Int Type Arguments
@@ -73,7 +73,7 @@ parser.add_argument("--max_LR"             , type=eval , dest='max_LR'          
 parser.add_argument("--min_HR"             , type=eval , dest='min_HR'             , default=-1)
 parser.add_argument("--max_HR"             , type=eval , dest='max_HR'             , default=1)
 parser.add_argument("--bit_depth"          , type=eval , dest='bit_depth'          , default=8)
-parser.add_argument("--outer_epochs"       , type=eval , dest='outer_epochs'       , default=1)
+parser.add_argument("--outer_epochs"       , type=eval , dest='outer_epochs'       , default=3)
 parser.add_argument("--inner_epochs"       , type=eval , dest='inner_epochs'       , default=1)
 parser.add_argument("--disk_batch"         , type=eval , dest='disk_batch'         , default=20)
 parser.add_argument("--memory_batch"       , type=eval , dest='memory_batch'       , default=32)
@@ -111,12 +111,12 @@ parser.add_argument("--attention"          , type=str , dest='attention'        
 parser.add_argument("--precision"          , type=str , dest='float_precision'     , default='float32')
 parser.add_argument("--optimizer"          , type=str , dest='optimizer'           , default='Adam')
 parser.add_argument("--name"               , type=str , dest='data_name'           , default='sample')
-parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='cnn') # other is 'gan'
+parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='gan') # other is 'gan'
 parser.add_argument("--high_path"          , type=str , dest='high_path'           , default=os.path.join('.','..','data','HR'))
 parser.add_argument("--low_path"           , type=str , dest='low_path'            , default=os.path.join('.','..','data','LR'))
 parser.add_argument("--gen_path"           , type=str , dest='gen_path'            , default=os.path.join('.','..','data','SR'))
-parser.add_argument("--save_dir"           , type=str , dest='save_dir'            , default=os.path.join('.','..','saved_models'))
-parser.add_argument("--plots"              , type=str , dest='plots'               , default=os.path.join('.','..','training_plots'))
+parser.add_argument("--save_dir"           , type=str , dest='save_dir'            , default=os.path.join('.','..','experiments','saved_models'))
+parser.add_argument("--plots"              , type=str , dest='plots'               , default=os.path.join('.','..','experiments','training_plots'))
 # parser.add_argument("--loss"             , type=str , dest='loss'                , default='MSE')
 parser.add_argument("--resize_interpolation"   , type=str  , dest='resize_interpolation'   , default='BICUBIC')
 parser.add_argument("--upsample_interpolation" , type=str  , dest='upsample_interpolation' , default='bicubic')
@@ -131,7 +131,7 @@ globals().update(args.__dict__)
 
 ######## CUSTOM IMPORTS AFTER COMMAND LINE ARGUMENTS PARSING BEGINS ########
 
-from myutils import PixelShuffle, DePixelShuffle, WeightedSumLayer
+from myutils import PixelShuffle, DePixelShuffle, WeightedSumLayer, MultiImageFlow
 import models_collection
 models_collection.initiate(globals())
 from models_collection import configs_dict
@@ -465,10 +465,14 @@ def compile_model(model,mode,opt):
 ######## PLOTTING FUNCTIONS BEGINS HERE ########
 
 def plot_history(history):
-    plot_dir =  os.path.join(plots,gan_model.name)
+    if train_strategy == 'cnn':
+        plot_dir =  os.path.join(plots,gen_choice)
+    else:
+        plot_dir =  os.path.join(plots,gan_model.name)
     if not os.path.isdir(plot_dir):
         try:
-            shutil.rmtree(plot_dir)
+            if os.path.isdir(plot_dir):
+                shutil.rmtree(plot_dir)
             os.makedirs(plot_dir)
         except:
             pass
@@ -506,7 +510,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     global iSUP, ia, ib, gan_model, all_history, history
     iSUP, ia, ib = SUP, a, b
     # Modes in which have to train model, either CNN only interleaving using GAN
-    modes = ['cnn'] if train_strategy=='cnn' else ['dis']*gen_dis_ratio[0]+['gen']**gen_dis_ratio[1]
+    modes = ['cnn'] if train_strategy=='cnn' else ['dis']*dis_gen_ratio[0]+['gen']*dis_gen_ratio[1]
     # Storing file names for retrieval of images
     if name not in file_names:
         file_names[name] = {}
@@ -524,7 +528,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     gan_model_path = os.path.join(save_dir, gan_model.name)
     if os.path.isdir(save_dir) and gan_model.name in os.listdir(save_dir):
         if prev_model:
-            gan_model = keras.models.load_model(gan_model_path,custom_objects=keras_update_dict)
+            gan_model.load_weights(gan_model_path)
         else:
             os.remove(gan_model_path)
 
@@ -544,6 +548,8 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     'content'      :np.array([None]  *len(x_valid['lr_input']))
     }
     val_init_PSNR = get_IPSNR(x_valid['hr_input'],x_valid['lr_input'],pred_mode='LR')
+    if train_strategy=='cnn':
+        x_valid, y_valid = x_valid['lr_input'], x_valid['hr_input']
     # Selecting optimizer for training
     if optimizer == 'Adam':
         opt = keras.optimizers.Adam( lr=lr, decay=decay )
@@ -588,19 +594,26 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 'content'      :np.array([None]  *len(x_train['lr_input']))
                 }
                 train_init_PSNR = get_IPSNR(x_train['hr_input'],x_train['lr_input'],pred_mode='LR')
+                model = gan_model # model to train
+                if train_strategy=='cnn':
+                    x_train, y_train = x_train['lr_input'], x_train['hr_input']
+                    model = generator_model # model to train
+                if data_augmentation:
+                    datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True)
+                    # datagen.fit(x_train) # this is not given in any GitHUb discussion or StackOverflow in README.md
+                    if train_strategy=='cnn': # flow for single inpute keras model
+                        flow = datagen.flow(x_train, y_train,batch_size=memory_batch)
+                    else:
+                        flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch)
 
-                if train_strategy=='gan':
-                    history = gan_model.fit(x=x_train,y=y_train,
-                        validation_data=(x_valid,y_valid),
-                        epochs=inner_epochs,batch_size=memory_batch,shuffle=True,verbose=True)
+                    history = model.fit_generator(flow,epochs=inner_epochs,validation_data=(x_valid, y_valid))
+                else:
+                    history = model.fit(x=x_train,y=y_train,validation_data=(x_valid,y_valid),epochs=inner_epochs,batch_size=memory_batch)
+                if train_strategy=='gan':                    
                     history = history.history
                     history['generator_IPSNR']     = [ (i-train_init_PSNR) for i in history['generator_PSNR'     ] ]
                     history['val_generator_IPSNR'] = [ (i-val_init_PSNR)   for i in history['val_generator_PSNR'] ]
-
                 else:
-                    history = generator_model.fit(x=x_train['lr_input'],y=x_train['hr_input'],
-                        validation_data=(x_valid['lr_input'],x_valid['hr_input']),
-                        epochs=inner_epochs,batch_size=memory_batch,shuffle=True,verbose=True)
                     history = history.history
                     history['IPSNR']     = [ (i-train_init_PSNR) for i in history['PSNR'    ] ]
                     history['val_IPSNR'] = [ (i-val_init_PSNR)   for i in history['val_PSNR'] ]
@@ -636,7 +649,7 @@ def test(name):
     # Working each image at a time for full generation
     disk_batch = 1 # Taking disk_batch to be 1 as heterogenous images
     n_disk_batches = len(file_names[name]['test'][:test_images_limit])
-    test_csv = open('{} {}.csv'.format(gan_model.name,n_disk_batches),'w')
+    test_csv = open(os.path.join('.','..','experiments','{} {}.csv'.format(train_strategy,gan_model.name)),'w')
     print( 'index,img_name,initial_psnr,final_psnr,psnr_gain' , file=test_csv )
     test_csv.close()
     psnr_sum = {}
@@ -674,14 +687,14 @@ def test(name):
         print('Time to Find and Store PSNRs',datetime.now()-init) # profiling
         print('Initial PSNR = {}, Final PSNR = {}, Gained PSNR = {}'.format(psnr_i,psnr_f,psnr_g))
         init = datetime.now()
-        test_csv = open('{} {}.csv'.format(gan_model.name,n_disk_batches),'a')
-        print( '{},{},{},{},{}\n'.format(i+1,file_names[name]['test'][i],psnr_i,psnr_f,psnr_g) , file=test_csv )
+        test_csv = open(os.path.join('.','..','experiments','{} {}.csv'.format(train_strategy,gan_model.name)),'a')
+        print( '{},{},{},{},{}'.format(i+1,file_names[name]['test'][i],psnr_i,psnr_f,psnr_g) , file=test_csv )
         test_csv.close()
         print('Time to Update CSV file',datetime.now()-init) # profiling
         if imwrite and bit_depth==8:
             init = datetime.now()
             img = Image.fromarray( backconvert(y_pred[0],typ='HR').astype('uint8') )
-            img.save( os.path.join(gen_store,'{}.PNG'.format(file_names[name]['test'][i])) )
+            img.save( os.path.join(gen_store+train_strategy,'{}.PNG'.format(file_names[name]['test'][i])) )
             print('Time to Write Image',datetime.now()-init) # profiling
         del x_test, y_test, y_pred, datasets['LR'][name]['test'], datasets['HR'][name]['test']
 
@@ -697,7 +710,7 @@ if __name__ == '__main__':
     if train_flag:
         train(data_name,train_strategy,(1,1))
     if test_flag:
-        pass #test(data_name)
+        test(data_name)
 
 
 ''' UNUSED CODE SECTION BEGINS '''

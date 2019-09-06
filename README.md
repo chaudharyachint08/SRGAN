@@ -47,7 +47,9 @@ Enhancing low resolution images by applying deep network to produce high resolut
 - [x] MIX loss function with its Adaptive variant
 - [x] Model parser function for easier prototyping
 - [x] Plotting functions for Training progress
-- [ ] Data augmentation    
+- [x] Data augmentation Class for MUlti I/O keras models
+- [x] PixelShuffle & DeShuffle keras layers
+- [x] Learnable Weighted sum keras layer
 - [ ] Attention Mechanism in GAN
 - [ ] Network Interpolation
 
@@ -87,6 +89,8 @@ cell 1 |  cell 2 | cell 3
 - [Various GANS implemented in Keras including SRGAN](https://github.com/eriklindernoren/Keras-GAN)
 - [VGG loss help](https://blog.sicara.com/keras-generative-adversarial-networks-image-deblurring-45e3ab6977b5)
 - [Improved Techniques for Training GANs](https://arxiv.org/abs/1606.03498)<br>
+- [Data Augmentation using Multiple Inputs](https://stackoverflow.com/questions/49404993/keras-how-to-use-fit-generator-with-multiple-inputs)
+- [Data Augmentation using Multiple Outputs](https://github.com/keras-team/keras/issues/7003)
 <a/>
 
 #### Similar Projects
