@@ -35,7 +35,7 @@ def initiate(dct):
 
     def gen_last_block(X_input):
         X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
-        # X = UpSampling(  size=2) (X)
+        # X = UpSampling2D(  size=2,interpolation=upsample_interpolation) (X)
         X = PixelShuffle(size=2)(X)
         X = PReLU(shared_axes=(1,2))(X)
         return X
@@ -95,21 +95,56 @@ def initiate(dct):
         }
 
 
+    def gen_residual_block2(X_input):
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
+        # X = BatchNormalization()(X)
+        X = PReLU(shared_axes=(1,2))(X)
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X)
+        # X = BatchNormalization()(X)
+        X = Add()([X,X_input[0]])
+        return X
+
+
+    baseline_gen2 = {
+        'name'      :'baseline_gen2',
+        # Convolution Links
+        'convo'    :[(0,1),(B+2,B+3),(B+7,B+8),(0,B+9)],
+        'convo_sub':['Conv2D','Conv2D','Conv2D','UpSampling2D',],
+        'convo_par':[{'filters':64,'kernel_size':(9,9),'padding':repr('same')},
+                     {'filters':64,'kernel_size':(3,3),'padding':repr('same')},
+                     {'filters':3 ,'kernel_size':(9,9),'padding':repr('same')},
+                     {'size':scale ,'interpolation':repr(upsample_interpolation)},],
+        # Advanced Activation Links
+        'aactv'    :[(1,2),],
+        'aactv_sub':['PReLU',],
+        'aactv_par':[{'shared_axes':(1,2)},],
+        # Block Links
+        'block'    :[(2+i,2+i+1)          for i in range(B)] + [(B+5+i,B+5+i+1)  for i in range(2)],
+        'block_sub':['gen_residual_block2' for i in range(B)] + ['gen_last_block' for i in range(2)],
+        # BatchNormalization Links
+        'btnrm'    :[(B+3,B+4),],
+        # Merge Links
+        'merge'    :[(2,B+4,B+5),(B+8,B+9,B+10)],
+        'merge_sub':['Add','Add',],
+        }
+
+
     configs_dict = {
 
         #  SR-GAN ARCHITECTURE STORAGE
-        'gen_residual_block' : gen_residual_block,
-        'gen_last_block'     : gen_last_block,
-        'baseline_gen'       : baseline_gen ,
-        'baseline_dis'       : baseline_dis ,
-        'baseline_con'       : baseline_con ,
+        'gen_residual_block'  : gen_residual_block,
+        'gen_last_block'      : gen_last_block,
+        'baseline_gen'        : baseline_gen ,
+        'baseline_dis'        : baseline_dis ,
+        'baseline_con'        : baseline_con ,
+
+        'gen_residual_block2' : gen_residual_block2,
+        'baseline_gen2'       : baseline_gen2 ,
 
         # E-SR-GAN ARCHITECTURE STORAGE
 
 
                     }
-
-
 
 
 '''
@@ -180,10 +215,6 @@ def initiate(dct):
         'l_block_connection' : [(i+2,i+3) for i in range(B)],
         'l_block_fun' : ['rec_block' for i in range(B)],
         }
-
-
-
-
 
 
 '''
