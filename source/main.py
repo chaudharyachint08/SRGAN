@@ -165,6 +165,8 @@ def check_and_gen(name,low_path,high_path):
                 image = load_img(os.path.join(high_store,img_name),color_mode='rgb')
                 image = image.resize( ((image.width//scale),(image.height//scale)) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                image = image.resize( ((image.width*scale),(image.height*scale)) ,
+                    resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                 image.save(os.path.join(low_store,img_name))
 
 def on_fly_crop(mat,patch_size=patch_size,overlap=overlap):
@@ -622,8 +624,10 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
         for mode in modes:
             if train_strategy!='cnn':
                print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
-            compile_model(gan_model,        mode , opt)
-            generator_model.compile(optimizer=opt,loss='MSE',metrics=['PSNR'])
+            if train_strategy=='gan':
+	            compile_model(gan_model,        mode , opt)
+	        else:
+	            generator_model.compile(optimizer=opt,loss='MSE',metrics=['PSNR'])
             np.random.shuffle(file_names[name]['train'])
             iSUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
             
