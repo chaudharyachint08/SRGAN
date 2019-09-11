@@ -88,10 +88,10 @@ def initiate(dct):
 
     baseline_con = {
         'name'     :'baseline_con',
-        'cipre'    :['vgg19',],
-        'cipre_sub':['vgg19',],
-        'cipre_out':['block5_conv4'], # Which layer to use
-        'cipre_act':[True],           # If to use last activation or now
+        'clpre'    :['vgg19',],
+        'clpre_sub':['VGG19',],
+        'clpre_out':['block5_conv4'], # Which layer to use
+        'clpre_act':[True],           # If to use last activation or now
         }
 
 

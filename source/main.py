@@ -43,11 +43,14 @@ K.set_image_data_format('channels_last')
 # Used for image.resize(target_size,PIL.Image.BICUBIC)
 import PIL
 from PIL import Image
-import os, numpy as np
+import os, gc, numpy as np
 from skimage import io
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
+
+import warnings
+warnings.filterwarnings("ignore")
 
 ######## STANDARD & THIRD PARTY LIBRARIES IMPORTS ENDS ########
 
@@ -85,7 +88,7 @@ parser.add_argument("--SUP"                , type=eval , dest='SUP'             
 parser.add_argument("--fSUP"               , type=eval , dest='fSUP'               , default=None)
 parser.add_argument("--alpha"              , type=eval , dest='alpha'              , default=1)     # MS-SSIM specific
 parser.add_argument("--beta"               , type=eval , dest='beta'               , default=1)     # MS-SSIM specific
-parser.add_argument("--B"                  , type=eval , dest='B'                  , default=2)    # B blocks in Generator
+parser.add_argument("--B"                  , type=eval , dest='B'                  , default=16)    # B blocks in Generator
 parser.add_argument("--U"                  , type=eval , dest='U'                  , default=3)     # Recursive block's Units
 # Float Type Arguments
 parser.add_argument("--lr"                 , type=eval , dest='lr'                 , default=0.001) # Initial learning rate
@@ -165,8 +168,6 @@ def check_and_gen(name,low_path,high_path):
                 image = load_img(os.path.join(high_store,img_name),color_mode='rgb')
                 image = image.resize( ((image.width//scale),(image.height//scale)) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                image = image.resize( ((image.width*scale),(image.height*scale)) ,
-                    resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                 image.save(os.path.join(low_store,img_name))
 
 def on_fly_crop(mat,patch_size=patch_size,overlap=overlap):
@@ -233,6 +234,7 @@ def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, pha
                 img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
                 patch_ls = on_fly_crop(img_mat,patch_size,overlap)[:patches_limit]
                 np.random.shuffle(patch_ls)
+                patch_ls = patch_ls[:patches_limit]
                 for x,scl in zip(('HR','LR'),(scale,1)):
                     if x=='LR':
                         for mat in patch_ls:
@@ -243,12 +245,12 @@ def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, pha
                             datasets[x][name][phase].append(img_mat)
                     else:
                         datasets[x][name][phase].extend(patch_ls)
-            else:
-                for x,scl in zip(('HR','LR'),(scale,1)):
-                    image = image.resize( ((image.width//scale)*scl,(image.height//scale)*scl) ,
-                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                    img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-                    datasets[x][name][phase].append(img_mat)
+            # else:
+            #     for x,scl in zip(('HR','LR'),(scale,1)):
+            #         image = image.resize( ((image.width//scale)*scl,(image.height//scale)*scl) ,
+            #             resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+            #         img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
+            #         datasets[x][name][phase].append(img_mat)
         for x in ('LR','HR'):
             for ph in ('train','valid','test'):
                 if ph==phase:
@@ -275,12 +277,24 @@ def get_data(name,phase,indx=['LR','HR'],org=False): # Flag to get as uint8 or f
             res[-1] = normalize(res[-1],x)
     return res if len(res)>1 else res[0]
 
+from IPython.display import display
+def show_ix(mat,ix,preproc=True,typ='HR'):
+    "Function to Show images, for debugging purpose"
+    if preproc:
+        img = Image.fromarray(  backconvert(mat[ix],typ).astype('uint8')  )
+    else:
+        img = Image.fromarray(  mat[ix]  )
+    display(img)
 ######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
 
 
 ######## METRIC DEFINITIONS BEGINS ########
 
-def PSNR(y_true, y_pred):
+def PSNR(y_true, y_pred, typ='HR'):
+    y_true = ( y_true - eval('min_{}'.format(typ)) ) / (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))
+    y_pred = ( y_pred - eval('min_{}'.format(typ)) ) / (eval('max_{}'.format(typ))-eval('min_{}'.format(typ)))
+    y_true, y_pred = y_true*((1<<bit_depth)-1), y_pred*((1<<bit_depth)-1)
+    y_true, y_pred = K.clip( K.round(y_true), 0, ((1<<bit_depth)-1) ), K.clip( K.round(y_pred), 0, ((1<<bit_depth)-1) )
     return (10.0 * K.log((((1<<bit_depth)-1) ** 2) / (K.mean(K.square(y_pred - y_true))))) / K.log(10.0)
 
 def npPSNR(y_true, y_pred):
@@ -353,11 +367,11 @@ def ZERO_LOSS(y_true,y_pred):
     return K.mean(y_pred,axis=-1)
 
 def DIS_LOSS(y_true, y_pred):
-    return K.categorical_crossentropy(y_true, y_pred)
+    return K.binary_crossentropy(y_true, y_pred)
 
 def ADV_LOSS(y_true, y_pred):
     y_pred = 1-y_pred
-    return K.categorical_crossentropy(y_true, y_pred)
+    return K.binary_crossentropy(y_true, y_pred)
 
 ######## CUSTOM LOSS FUNCTIONS DEFINITIONS ENDS ########
 
@@ -383,16 +397,19 @@ def dict_to_model_parse(config,*ip_shapes):
     all_lyr_typs = ('clpre','dense','actvn','drpot','flttn','input','reshp','lmbda','spdrp',
         'convo','usmpl','zpdng','poolg','merge','aactv','btnrm','wsuml','pslyr','block',)
     for lyr_typ in all_lyr_typs:
-        config[lyr_typ] = [ tuple(sorted(i)) for i in config[lyr_typ]  ] if lyr_typ in config else []
+        if lyr_typ != 'clpre':
+            config[lyr_typ] = [ tuple(sorted(i)) for i in config[lyr_typ]  ] if lyr_typ in config else []
+    if 'clpre' not in config:
+        config['clpre'] = []
     if config['clpre']: # if ContentLayersModel is defined, then no other architecture is there to setup
-        ConModel = eval( 'keras.applications.{}.{}'.format(config['clpre'][0],config['clpre_sub'][0]) )
+        ConModel = eval( 'keras.applications.{}.{}'.format(''.join(config['clpre'][0]),config['clpre_sub'][0]) )
         con_model = ConModel( include_top=False, weights='imagenet', input_shape=(patch_size,patch_size,len(channel_indx)) )
         if 'clpre_out' in config: # if defined after which convo layer to take content, else last convolution layer is taken
             model = Model( inputs = con_model.input , outputs = con_model.get_layer(config['clpre_out'][0]).output )
         else:
             model = con_model
         if ('clpre_act' in config) and (not config['clpre_act'][0]):
-            model.layers[-1].activation = None
+                model.layers[-1].activation = None
     else: # Setting up architecture for GNERATOR/DISCRIMINATOR
         target, tensors = len(ip_shapes), [ Input(i) for i in ip_shapes ]
         while True:
@@ -470,7 +487,6 @@ def my_gan(*shapes):
     Y_con  = Lambda( lambda x : K.square(x), name='content' ) (Y_con)
     return Model(inputs=[X_lr,X_hr],outputs=[Y_sr,Y_dis,Y_con],name=', '.join((gen_choice,dis_choice,con_choice)))
 
-
 def freeze_model(model,recursive=False):
     model.trainable = False
     for layer in model.layers:
@@ -485,6 +501,14 @@ def unfreeze_model(model,recursive=False):
         if isinstance(layer, Model) and recursive:
             unfreeze_model(layer,recursive)
 
+def my_model_save(model,name):
+    with open("{}.json".format(name), "w") as json_file:
+        json_file.write( model.to_json() )
+    model.save_weights("{}.hdf5".format(name))
+
+def my_model_load(model,name):
+    model.load_weights('{}.hdf5'.format(name))
+
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
         train_model , non_train_model = generator_model, discriminator_model
@@ -496,15 +520,24 @@ def compile_model(model,mode,opt):
     elif mode=='dis':
         non_train_model , train_model = generator_model, discriminator_model
         loss = { 'generator':'MSE' , 'discriminator':'DIS_LOSS' , 'content':'ZERO_LOSS' }
-        loss_weights = { 'generator':0 , 'discriminator':1e-3 , 'content':(1/12.75)**2 }
+        loss_weights = { 'generator':0 , 'discriminator':1 , 'content':0 }
     metrics = {'generator':'PSNR'}
     freeze_model(   content_model   )
     freeze_model(   non_train_model )
     unfreeze_model( train_model     )
+    for layer in model.layers:
+        if isinstance(layer, Model):
+            if layer.name == 'content':
+                layer.trainable = False
+            elif layer.name == 'generator':
+                layer.trainable == True  if mode in ('cnn','gen') else False
+            elif layer.name == 'discriminator':
+                layer.trainable = False if mode in ('cnn','gen') else True
+
     model.compile(  optimizer=opt , loss = loss , loss_weights = loss_weights, metrics=metrics )
-    freeze_model(   content_model   )
-    freeze_model(   non_train_model )
-    unfreeze_model( train_model     )
+    # freeze_model(   content_model   )
+    # freeze_model(   non_train_model )
+    # unfreeze_model( train_model     )
 
 ######## MODELS DEFINITIONS ENDS ########
 
@@ -527,8 +560,8 @@ def plot_history(history):
         if not key.startswith('val'):
             _ = plt.plot(history[key]         , linewidth=1 , label=key )
             _ = plt.plot( history['val_'+key] , linewidth=1 , label='val_'+key )
-            plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3e}')) # 2 decimal places
-            plt.xticks( np.round(np.linspace(0,len(history[key])-1,10),2) , np.round(np.linspace(1,len(history[key]),10),2) )
+            plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3g}')) # 2 decimal places
+            plt.xticks( np.round(np.linspace(0,len(history[key])-1,5),0) , np.round(np.linspace(1,len(history[key]),5),0) )
             plt.grid(True) ; plt.xlabel('Epochs')
             plt.ylabel(key) ; plt.title(' '.join(x for x in key.upper().split('_')))
             plt.legend( loc='upper left' , bbox_to_anchor=(1,1) , fancybox=True , shadow=True )
@@ -544,19 +577,6 @@ def plot_history(history):
 pass
 
 ######## LEARNING RATE SCHEDULES BEGINS HERE ########
-
-
-######## MODEL SAVING AND LOADING FUNCTIONS BEGINS HERE ########
-
-def my_model_save(model,name):
-    with open("{}.json".format(name), "w") as json_file:
-        json_file.write( model.to_json() )
-    model.save_weights("{}.hdf5".format(name))
-
-def my_model_load(model,name):
-    model.load_weights(name)
-
-######## MODEL SAVING AND LOADING FUNCTIONS BEGINS HERE ########
 
 
 ######## TRAINING CODE SECTION BEGINS ########
@@ -584,14 +604,6 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     SUP_delta = 0 if (fSUP is None) else ((fSUP-SUP) / (n_disk_batches*outer_epochs-1))
     a_delta   = 0 if (fa   is None) else ((fa-a)     / (n_disk_batches*outer_epochs-1))
     b_delta   = 0 if (fb   is None) else ((fb-b)     / (n_disk_batches*outer_epochs-1))
-    # Using previous model if so exist and set as command flag to use, warm training has many advantages
-    gan_model_path = os.path.join(save_dir, gan_model.name)
-    if os.path.isdir(save_dir) and gan_model.name in os.listdir(save_dir):
-        if prev_model:
-            my_model_load( gan_model , gan_model_path )
-            # gan_model.load_weights(gan_model_path)#,custom_objects=keras_update_dict)
-        else:
-            os.remove(gan_model_path)
     # Reading Validation Set & finding initial PSNR difference from HR
     np.random.shuffle(file_names[name]['valid'])
     print('\nReading Validation Set',end=' ') ; init_time = datetime.now()
@@ -625,20 +637,29 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
             if train_strategy!='cnn':
                print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
             if train_strategy=='gan':
-	            compile_model(gan_model,        mode , opt)
-	        else:
-	            generator_model.compile(optimizer=opt,loss='MSE',metrics=['PSNR'])
+                model = gan_model
+                compile_model(model,        mode , opt)
+            else:
+                model = generator_model
+                model.compile(optimizer=opt,loss='MSE',metrics=['PSNR'])
+
+            if (prev_model or epc) and os.path.isdir(save_dir): # after 1st outer epoch, due to recompiing models
+                my_model_load( generator_model     , os.path.join(save_dir,gen_choice) )
+                if train_strategy=='gan':
+                    my_model_load( discriminator_model , os.path.join(save_dir,dis_choice) )
+                    my_model_load( content_model       , os.path.join(save_dir,con_choice) )
             np.random.shuffle(file_names[name]['train'])
             iSUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
             
             for i in range(n_disk_batches):
-                K.set_value(gan_model.optimizer.lr    , lr+(i+epc*n_disk_batches)*lr_delta)
-                K.set_value(gan_model.optimizer.decay , decay)
+                gc.collect()
+                K.set_value(model.optimizer.lr    , lr+(i+epc*n_disk_batches)*lr_delta)
+                K.set_value(model.optimizer.decay , decay)
                 if gclip:
                     if gnclip is not None:
-                        gan_model.optimizer.__dict__['clipnorm']  = gnclip / lr+(i+epc*n_disk_batches)*lr_delta
+                        model.optimizer.__dict__['clipnorm']  = gnclip / lr+(i+epc*n_disk_batches)*lr_delta
                     if gvclip is not None:
-                        gan_model.optimizer.__dict__['clipvalue'] = gvclip / lr+(i+epc*n_disk_batches)*lr_delta
+                        model.optimizer.__dict__['clipvalue'] = gvclip / lr+(i+epc*n_disk_batches)*lr_delta
                 
                 print( 'Reading Disk Batch {}'.format(i+1) )
                 init_time = datetime.now()
@@ -656,18 +677,15 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 'content'      :np.array([None]  *len(x_train['lr_input']))
                 }
                 train_init_PSNR = get_IPSNR(x_train['hr_input'],x_train['lr_input'],pred_mode='LR')
-                model = gan_model # model to train
                 if train_strategy=='cnn':
                     x_train, y_train = x_train['lr_input'], x_train['hr_input']
-                    model = generator_model # model to train
                 if data_augmentation:
-                    datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=False)
+                    datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True)
                     # datagen.fit(x_train) # this is not given in any GitHUb discussion or StackOverflow in README.md
                     if train_strategy=='cnn': # flow for single inpute keras model
                         flow = datagen.flow(x_train, y_train,batch_size=memory_batch)
                     else:
                         flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch)
-
                     history = model.fit_generator(flow,epochs=inner_epochs,validation_data=(x_valid, y_valid))
                 else:
                     history = model.fit(x=x_train,y=y_train,validation_data=(x_valid,y_valid),epochs=inner_epochs,batch_size=memory_batch)
@@ -688,15 +706,16 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 if not os.path.isdir(save_dir):
                     os.mkdir(save_dir)
                 try:
-                    freeze_model(gan_model,recursive=True)
-                    my_model_save( gan_model       , gan_model_path                    )
-                    # my_model_save( generator_model , os.path.join(save_dir,gen_choice) )
-                    # gan_model.save(gan_model_path)
-                    generator_model.save( '{}.hdf5'.format(os.path.join(save_dir,gen_choice)) )
+                    my_model_save( generator_model         , os.path.join(save_dir,gen_choice ) )
+                    if train_strategy=='gan':
+                        my_model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
+                        my_model_save( content_model       , os.path.join(save_dir,con_choice ) )
+                        # freeze_model(gan_model,recursive=True) # Does this have any role??
+                        # my_model_save( gan_model           , os.path.join(save_dir,gan_model.name) )
                 except:
-                    print('Model Cannot be Saved')
+                    print('Models Cannot be Saved')
                 else:
-                    print('Saved trained model at %s \n\n' % gan_model_path)
+                    print('Saved trained models')
                 del datasets['LR'][name]['train'] , datasets['HR'][name]['train']
                 iSUP, ia, ib = iSUP+SUP_delta, ia+a_delta, ib+b_delta
     del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
@@ -708,7 +727,6 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
 
 def test(name):
     ""
-    generator_model_path = os.path.join(save_dir,gen_choice)
     file_names[name] = {}
     file_names[name]['test'] = sorted(os.listdir(os.path.join(high_path,name,'test')))
     # Working each image at a time for full generation
@@ -723,7 +741,9 @@ def test(name):
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
     if os.path.isdir(save_dir) and gen_choice in os.listdir(save_dir):
-        new_generator_model.load_weights( '{}.hdf5'.format(generator_model_path) )
+        my_model_load( new_generator_model ,  os.path.join(save_dir,gen_choice) )
+    else:
+        print('Model to Load for testing not found')
     print('Time to Load Weights',datetime.now()-init) # profiling
     if imwrite:
         gen_store = os.path.join(gen_path+train_strategy,name)
@@ -732,6 +752,7 @@ def test(name):
         if not os.path.isdir(gen_store):
             os.makedirs(gen_store)
     for i in range(n_disk_batches):
+        gc.collect()
         init_time = datetime.now()
         feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,False,'test',True) # erase all previous dataset
         print('Time to read image {} is {}'.format(i+1,datetime.now()-init_time))
@@ -776,7 +797,8 @@ if __name__ == '__main__':
     gan_model = my_gan( patch_size )
     datasets = {}
     if train_flag:
-        train(data_name,train_strategy,(1,1))
+        # 
+        train(data_name,'gan',(1,1))
     if test_flag:
         test(data_name)
 
