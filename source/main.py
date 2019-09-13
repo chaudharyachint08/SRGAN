@@ -48,6 +48,7 @@ from skimage import io
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
+from IPython.display import display
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -277,14 +278,16 @@ def get_data(name,phase,indx=['LR','HR'],org=False): # Flag to get as uint8 or f
             res[-1] = normalize(res[-1],x)
     return res if len(res)>1 else res[0]
 
-from IPython.display import display
-def show_ix(mat,ix,preproc=True,typ='HR'):
-    "Function to Show images, for debugging purpose"
+def show_ix(mat,ix,preproc=True,typ='HR',ipython=True):
     if preproc:
         img = Image.fromarray(  backconvert(mat[ix],typ).astype('uint8')  )
     else:
-        img = Image.fromarray(  mat[ix]  )
-    display(img)
+        img = Image.fromarray(  mat[ix].astype('uint8')  )
+    if ipython:
+        display(img)
+    else:
+        img.show()
+
 ######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
 
 
@@ -740,7 +743,7 @@ def test(name):
     new_generator_model = dict_to_model_parse( configs_dict[gen_choice] , (None,None,len(channel_indx)) )
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
-    if os.path.isdir(save_dir) and gen_choice in os.listdir(save_dir):
+    if os.path.isdir(save_dir) and '{}.hdf5'.format(gen_choice) in os.listdir(save_dir):
         my_model_load( new_generator_model ,  os.path.join(save_dir,gen_choice) )
     else:
         print('Model to Load for testing not found')

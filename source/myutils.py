@@ -1,9 +1,13 @@
 # Imports for Custom Layers implementation
 import keras, tensorflow as tf
 from keras.layers import Layer
+# Import for custom Upsampling Layers
+from keras.layers import Lambda
+import tensorflow as tf
 # Imports for Multi input data augmentation
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import Sequence
+from copy import deepcopy
 
 
 class PixelShuffle(Layer):
@@ -71,7 +75,7 @@ class MultiImageFlow(Sequence):
         self.datagen = datagen
         if (type(X) in (list, tuple)):
             if (type(self.datagen) not in (list, tuple)):
-                self.datagen = dict(enumerate( [self.datagen]*len(X) ))
+                self.datagen = dict(enumerate( [deepcopy(self.datagen)]*len(X) ))
             else:
                 self.datagen = dict(enumerate(self.datagen))
         elif (type(X) is dict):
