@@ -25,16 +25,16 @@ def initiate(dct):
 
 
     def gen_residual_block(X_input):
-        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same',use_bias=True)(X_input[0])
         X = BatchNormalization()(X)
         X = PReLU(shared_axes=(1,2))(X)
-        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same')(X)
+        X = Conv2D(filters=64,kernel_size=(3,3),strides=(1,1),padding='same',use_bias=True)(X)
         X = BatchNormalization()(X)
         X = Add()([X,X_input[0]])
         return X
 
     def gen_last_block(X_input):
-        X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1),padding='same')(X_input[0])
+        X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1),padding='same',use_bias=True)(X_input[0])
         # X = UpSampling2D(  size=2,interpolation=upsample_interpolation) (X)
         X = PixelShuffle(size=2)(X)
         X = PReLU(shared_axes=(1,2))(X)
@@ -45,9 +45,9 @@ def initiate(dct):
         # Convolution Links
         'convo'    :[(0,1),(B+2,B+3),(B+7,B+8),],
         'convo_sub':['Conv2D','Conv2D','Conv2D',],
-        'convo_par':[{'filters':64,'kernel_size':(9,9),'padding':repr('same')},
-                     {'filters':64,'kernel_size':(3,3),'padding':repr('same')},
-                     {'filters':3 ,'kernel_size':(9,9),'padding':repr('same')},],
+        'convo_par':[{'filters':64,'kernel_size':(9,9),'padding':repr('same'),'use_bias':True},
+                     {'filters':64,'kernel_size':(3,3),'padding':repr('same'),'use_bias':True},
+                     {'filters':3 ,'kernel_size':(9,9),'padding':repr('same'),'use_bias':True},],
         # Advanced Activation Links
         'aactv'    :[(1,2),],
         'aactv_sub':['PReLU',],
@@ -145,6 +145,13 @@ def initiate(dct):
 
 
                     }
+
+
+
+
+
+
+
 
 
 '''

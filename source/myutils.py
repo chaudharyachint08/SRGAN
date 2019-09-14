@@ -3,7 +3,6 @@ import keras, tensorflow as tf
 from keras.layers import Layer
 # Import for custom Upsampling Layers
 from keras.layers import Lambda
-import tensorflow as tf
 # Imports for Multi input data augmentation
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import Sequence
@@ -45,7 +44,6 @@ class DePixelShuffle(Layer):
             return (input_shape[0],)+(input_shape[1]//self.size,)+(input_shape[2]//self.size,)+(input_shape[3]*self.size**2,)
         except:
             return (input_shape[0],)+(None,)+(None,)+(input_shape[3]//self.size**2,)
-
 
 class WeightedSumLayer(Layer):
     "Weighted sum of multiple convolutions, behaviour similar to merge layers"

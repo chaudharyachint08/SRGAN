@@ -18,10 +18,10 @@ def model(shape):
 	return keras.models.Model(inputs=X0,outputs=X3)
 
 mymodel = model((4,2))
-opt = keras.optimizers.Adam()
+opt = keras.optimizers.Adam(lr=0.1,decay=0.1)
 
 mymodel.compile(optimizer=opt, loss=zero_loss)
 
-mymodel.fit(X,Y)
+mymodel.fit(X,Y,epochs=10)
 
 

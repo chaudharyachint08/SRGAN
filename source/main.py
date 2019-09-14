@@ -37,6 +37,8 @@ from keras.applications.vgg19 import VGG19, preprocess_input as vgg19_preprocess
 from keras.preprocessing.image import load_img, img_to_array, ImageDataGenerator
 # Keras custom objects in which we will add custom losses and metrics
 from keras.utils.generic_utils import get_custom_objects
+# Keras Model saving & Loading
+from keras.engine.saving import save_model, load_model
 # Keras Backend for additional functionalities
 from keras import backend as K
 K.set_image_data_format('channels_last')
@@ -72,6 +74,7 @@ parser.add_argument("--gclip"              , type=eval , dest='gclip'           
 parser.add_argument("--scale"              , type=eval , dest='scale'              , default=4)
 parser.add_argument("--patch_size"         , type=eval , dest='patch_size'         , default=96)
 parser.add_argument("--patches_limit"      , type=eval , dest='patches_limit'      , default=None)
+parser.add_argument("--patch_approach"     , type=eval , dest='patch_approach'     , default=2)
 parser.add_argument("--min_LR"             , type=eval , dest='min_LR'             , default=0)
 parser.add_argument("--max_LR"             , type=eval , dest='max_LR'             , default=1)
 parser.add_argument("--min_HR"             , type=eval , dest='min_HR'             , default=-1)
@@ -162,100 +165,94 @@ def check_and_gen(name,low_path,high_path):
     for ph in ('train','valid','test'):
         low_store  = os.path.join(low_path, name,ph)
         high_store = os.path.join(high_path,name,ph)
+        gen_images = True
         if not os.path.isdir(low_store):
             os.makedirs(low_store)
-        for img_name in os.listdir(high_store):
-            if not os.path.isfile(os.path.join(low_store,img_name)):
+            gen_images = True
+        else: #Check scale at file
+            with open(os.path.join(low_store,'scale.txt'),'r') as f:
+                if eval(f.read().strip())==scale:
+                    gen_images = False
+                else:
+                    gen_images = True
+        if gen_images:
+            with open(os.path.join(low_store,'scale.txt'),'w') as f:
+                f.write(str(scale))
+            for img_name in os.listdir(high_store):
                 image = load_img(os.path.join(high_store,img_name),color_mode='rgb')
                 image = image.resize( ((image.width//scale),(image.height//scale)) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                 image.save(os.path.join(low_store,img_name))
 
-def on_fly_crop(mat,patch_size=patch_size,overlap=overlap):
+def on_fly_crop(mat,patch_size=patch_size,typ='HR',overlap=overlap):
     "Crop images into patches, with explicit overlap, and limit of random patches if exist"
     ls = []
     nparts1, nparts2 = int(np.ceil(mat.shape[0]/patch_size)) , int(np.ceil(mat.shape[1]/patch_size))
     step1, step2     = (mat.shape[0]-patch_size)/(nparts1-1) , (mat.shape[1]-patch_size)/(nparts2-1)
-    step1, step2     = step1 - int(np.ceil(step1*overlap))   , step2 - int(np.ceil(step2*overlap))
+    if typ=='HR':
+        step1, step2 = step1/scale, step2/scale
+    step1, step2     = int(np.floor(step1*(1-overlap))) , int(np.floor(step2*(1-overlap)))
     for i in range(nparts1):
-        i = round(i*step1)
+        i = round(i*step1)*(scale if typ=='HR' else 1)
         for j in range(nparts2):
-            j = round(j*step2)
+            j = round(j*step2)*(scale if typ=='HR' else 1)
             ls.append( mat[i:i+patch_size,j:j+patch_size] )
-    return ls
+    return np.array(ls)
     
-def feed_data(name, low_path, high_path, lw_indx, up_indx, crop_flag = True, phase = 'train', erase_prev=False):
+def feed_data(name,low_path,high_path,lw_ix,up_ix,patching=True,phase='train',erase=False,patch_approach=patch_approach):
     "feed the required fraction of dataset into memory for consumption by model"
     global datasets
-    if erase_prev:
+    if erase:
         datasets = {}
     check_and_gen(name,low_path,high_path)
-    if patches_limit is None: # Faster in readling, as compared to ELSE part, due to multiple reshaping
-        for x in ('LR','HR'):
-            data_path = high_path if x=='HR' else low_path
-            if x not in datasets:
-                datasets[x] = {}
-            if name not in datasets[x]:
-                datasets[x][name] = {}
-            for ph in ('train','valid','test'):
-                # All datasets be present, even if empty
-                if (ph not in datasets[x][name]):
-                    datasets[x][name][ph] = []
-                if phase == ph:
-                    for img_name in file_names[name][ph][lw_indx:up_indx]:
-                        clr = 'grayscale' if read_as_gray else 'rgb'
-                        image = load_img(os.path.join(data_path,name,ph,img_name),color_mode=clr)
-                        if x=='HR': # Squeeze & Stretch for HR images only
-                            image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
-                                resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                        # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
-                        img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-                        if crop_flag:
-                            datasets[x][name][ph].extend(on_fly_crop(img_mat,patch_size//(1 if x=='HR' else scale) ))
-                        else:
-                            datasets[x][name][ph].append(img_mat)
-                    datasets[x][name][ph] = np.array(datasets[x][name][ph])
-    else:
-        for x in ('LR','HR'):
-            if x not in datasets:
-                datasets[x] = {}
-            if name not in datasets[x]:
-                datasets[x][name] = {}
-            for ph in ('train','valid','test'):
-                # All datasets be present, even if empty
-                if (ph not in datasets[x][name]):
-                    datasets[x][name][ph] = []
-        for img_name in file_names[name][phase][lw_indx:up_indx]:
-            clr = 'grayscale' if read_as_gray else 'rgb'
-            image = load_img(os.path.join(high_path,name,phase,img_name),color_mode=clr)
-            # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
-            if crop_flag:
-                image = image.resize( ((image.width//scale)*scale,(image.height//scale)*scale) ,
+    for x in ('LR','HR'):
+        if x not in datasets:
+            datasets[x] = {}
+        if name not in datasets[x]:
+            datasets[x][name] = {}
+        # Entries for all phases, even if absent
+        for ph in ('train','valid','test'):
+            if (ph not in datasets[x][name]):
+                datasets[x][name][ph] = []
+        # Entry for present phase has to be LIST type, as to be append/extend
+        datasets[x][name][phase] = []
+    # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
+    clr = 'grayscale' if read_as_gray else 'rgb'
+    for img_name in file_names[name][phase][lw_ix:up_ix]:
+        image = load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr)
+        patch_ls, random_ix_ls = None, None
+        for x,scl in zip(('HR','LR'),(scale,1)):
+            if (not patching) or (patch_approach==1):
+                image = image.resize( ((image.width//scale)*scl,(image.height//scale)*scl) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+            if not ( patching and x=='LR' and patch_approach==2 ):
                 img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-                patch_ls = on_fly_crop(img_mat,patch_size,overlap)[:patches_limit]
-                np.random.shuffle(patch_ls)
-                patch_ls = patch_ls[:patches_limit]
-                for x,scl in zip(('HR','LR'),(scale,1)):
-                    if x=='LR':
-                        for mat in patch_ls:
-                            image = Image.fromarray(mat)
-                            image = image.resize( ((image.width//scale),(image.height//scale)) ,
-                                resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                            img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-                            datasets[x][name][phase].append(img_mat)
-                    else:
+            if not patching:
+                datasets[x][name][phase].append(img_mat)
+            else: # If patches are to be used, for training & validation data
+                if x=='HR':
+                    patch_ls = on_fly_crop( img_mat,patch_size,x )
+                    if patches_limit is not None:
+                        random_ix_ls = np.arange(len(patch_ls))
+                        np.random.shuffle(random_ix_ls)
+                        random_ix_ls = random_ix_ls[:patches_limit]
+                        patch_ls = patch_ls[random_ix_ls]
+                    datasets[x][name][phase].extend(patch_ls)
+                else: # There are 2 approaches for generating LR patches
+                    if patch_approach == 1 :
+                        patch_ls = on_fly_crop( img_mat,patch_size//scale,x )
+                        if patches_limit is not None:
+                            patch_ls = patch_ls[random_ix_ls]
                         datasets[x][name][phase].extend(patch_ls)
-            # else:
-            #     for x,scl in zip(('HR','LR'),(scale,1)):
-            #         image = image.resize( ((image.width//scale)*scl,(image.height//scale)*scl) ,
-            #             resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-            #         img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
-            #         datasets[x][name][phase].append(img_mat)
-        for x in ('LR','HR'):
-            for ph in ('train','valid','test'):
-                if ph==phase:
-                    datasets[x][name][ph] = np.array(datasets[x][name][ph])
+                    elif patch_approach == 2 :
+                        for mat in patch_ls:
+                            patch_image = Image.fromarray(mat)
+                            patch_image = image.resize( ((patch_image.width//scale),(patch_image.height//scale)) ,
+                                resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                            mat = img_to_array( patch_image , dtype='uint{}'.format(bit_depth))
+                            datasets[x][name][phase].append(mat)
+    for x in ('LR','HR'):
+        datasets[x][name][phase] = np.array(datasets[x][name][phase])
 
 def normalize(mat,typ='HR'):
     "Normalize image matrix into ranges given"
@@ -504,13 +501,24 @@ def unfreeze_model(model,recursive=False):
         if isinstance(layer, Model) and recursive:
             unfreeze_model(layer,recursive)
 
-def my_model_save(model,name):
-    with open("{}.json".format(name), "w") as json_file:
-        json_file.write( model.to_json() )
-    model.save_weights("{}.hdf5".format(name))
+def model_save(model,filepath):
+    save_model(model, "{}".format(filepath), overwrite=True, optimizer=True)
+    # with open("{}.json".format(name), "w") as json_file:
+    #     json_file.write( model.to_json() )
+    # model.save_weights("{}.h5".format(name))
 
-def my_model_load(model,name):
-    model.load_weights('{}.hdf5'.format(name))
+def model_load(filepath):
+    return load_model("{}".format(filepath), custom_objects=keras_update_dict, compile=False)
+    # model.load_weights('{}.h5'.format(filepath))
+
+def opt_save(obj,filepath):
+    with open(filepath,'wb') as f:
+        pickle.dump(obj,f)
+
+def opt_load(filepath):
+    with open(filepath,'rb') as f:
+        obj = f.load()
+    return obj
 
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
@@ -563,8 +571,8 @@ def plot_history(history):
         if not key.startswith('val'):
             _ = plt.plot(history[key]         , linewidth=1 , label=key )
             _ = plt.plot( history['val_'+key] , linewidth=1 , label='val_'+key )
-            plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3g}')) # 2 decimal places
             plt.xticks( np.round(np.linspace(0,len(history[key])-1,5),0) , np.round(np.linspace(1,len(history[key]),5),0) )
+            plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3g}')) # 2 decimal places
             plt.grid(True) ; plt.xlabel('Epochs')
             plt.ylabel(key) ; plt.title(' '.join(x for x in key.upper().split('_')))
             plt.legend( loc='upper left' , bbox_to_anchor=(1,1) , fancybox=True , shadow=True )
@@ -587,6 +595,7 @@ pass
 def train(name,train_strategy,dis_gen_ratio=(1,1)):
     ""
     global iSUP, ia, ib, gan_model, all_history, history
+    global generator_model, discriminator_model, content_model
     iSUP, ia, ib = SUP, a, b
     try:
         del datasets['LR'][name], datasets['HR'][name]
@@ -609,8 +618,8 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     b_delta   = 0 if (fb   is None) else ((fb-b)     / (n_disk_batches*outer_epochs-1))
     # Reading Validation Set & finding initial PSNR difference from HR
     np.random.shuffle(file_names[name]['valid'])
-    print('\nReading Validation Set',end=' ') ; init_time = datetime.now()
-    feed_data(name,low_path,high_path,None,valid_images_limit,True,'valid')
+    print('\nReading Validation Set',end=' ') ; init_time = datetime.now()    
+    feed_data(name,low_path,high_path,None,valid_images_limit,patching=True,phase='valid',erase=False,patch_approach=patch_approach)
     print( 'Time taken is {} '.format((datetime.now()-init_time)) )
     x_valid = get_data(name,'valid',indx=['LR','HR'],org=False)
     x_valid = {
@@ -627,30 +636,46 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
         x_valid, y_valid = x_valid['lr_input'], x_valid['hr_input']
     # Selecting optimizer for training
     if optimizer == 'Adam':
-        opt = keras.optimizers.Adam( lr=lr, decay=decay )
+        opt1 = keras.optimizers.Adam( lr=lr, decay=decay )
+        opt2 = keras.optimizers.Adam( lr=lr, decay=decay )
     elif optimizer == 'SGD':
-        opt = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
+        opt1 = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
+        opt2 = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
     else:   
         raise Exception('Unexpected Optimizer than two classics')
     # collecting history from all opechs, and oter_epochs training loop
     all_history = None
     for epc in range(outer_epochs):
         print('\nOuter Epoch {}'.format(epc+1))
-        for mode in modes:
-            if train_strategy!='cnn':
-               print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
-            if train_strategy=='gan':
-                model = gan_model
-                compile_model(model,        mode , opt)
-            else:
-                model = generator_model
-                model.compile(optimizer=opt,loss='MSE',metrics=['PSNR'])
+        for mode_ix,mode in enumerate(modes):
+            if train_strategy=='cnn':
+                if (not epc):
+                    if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
+                        generator_model = model_load( os.path.join(save_dir,gen_choice) )
+                        if os.path.isfile(os.path.join(save_dir,'opt1')):
+                            opt1 = opt_load(os.path.join(save_dir,'opt1'))
+                    model = generator_model
+                    model.compile(optimizer=opt1,loss='MSE',metrics=['PSNR'])
+            else train_strategy=='gan':
+                print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
+                if (not epc):
+                    if prev_model and os.path.isfile(os.path.join(save_dir,gan_model.name)):
+                        gan_model = model_load( os.path.join(save_dir,gan_model.name) )
+                    # if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
+                    #     generator_model     = model_load( os.path.join(save_dir,gen_choice) )
+                    # if prev_model and os.path.isfile(os.path.join(save_dir,dis_choice)):
+                    #     discriminator_model = model_load( os.path.join(save_dir,dis_choice) )
+                    model = gan_model
+                if modes[mode_ix] != modes[(mode_ix-1)%len(modes)]:
+                    if mode=='gen':
+                        if os.path.isfile(os.path.join(save_dir,'opt1')):
+                            opt1 = opt_load(os.path.join(save_dir,'opt1'))
+                        compile_model(gan_model, mode, opt1)
+                    elif mode=='dis':
+                        if os.path.isfile(os.path.join(save_dir,'opt2')):
+                            opt2 = opt_load(os.path.join(save_dir,'opt2'))
+                        compile_model(gan_model, mode, opt2)
 
-            if (prev_model or epc) and os.path.isdir(save_dir): # after 1st outer epoch, due to recompiing models
-                my_model_load( generator_model     , os.path.join(save_dir,gen_choice) )
-                if train_strategy=='gan':
-                    my_model_load( discriminator_model , os.path.join(save_dir,dis_choice) )
-                    my_model_load( content_model       , os.path.join(save_dir,con_choice) )
             np.random.shuffle(file_names[name]['train'])
             iSUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
             
@@ -666,7 +691,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 
                 print( 'Reading Disk Batch {}'.format(i+1) )
                 init_time = datetime.now()
-                feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,True,'train')
+                feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=True,phase='train',erase=False,patch_approach=patch_approach)
                 print( 'Time taken is {} '.format((datetime.now()-init_time)) )
 
                 x_train = get_data(name,'train',indx=['LR','HR'],org=False)
@@ -709,19 +734,25 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 if not os.path.isdir(save_dir):
                     os.mkdir(save_dir)
                 try:
-                    my_model_save( generator_model         , os.path.join(save_dir,gen_choice ) )
-                    if train_strategy=='gan':
-                        my_model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
-                        my_model_save( content_model       , os.path.join(save_dir,con_choice ) )
-                        # freeze_model(gan_model,recursive=True) # Does this have any role??
-                        # my_model_save( gan_model           , os.path.join(save_dir,gan_model.name) )
+                    if train_strategy=='cnn':
+                        model_save( generator_model , os.path.join(save_dir,gen_choice ) )
+                        opt_save( opt1 , os.path.join(save_dir,'opt1' ) )
+                    elif train_strategy=='gan':
+                        model_save( gan_model           , os.path.join(save_dir,gan_model.name) )
+                        # model_save( generator_model     , os.path.join(save_dir,gen_choice ) )
+                        # model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
+                        if modes[mode_ix] != modes[(mode_ix+1)%len(modes)]:
+                            if mode=='gen':
+                                opt_save( opt1 , os.path.join(save_dir,'opt1' ) )
+                            elif mode=='dis':
+                                opt_save( opt2 , os.path.join(save_dir,'opt2' ) )
                 except:
-                    print('Models Cannot be Saved')
+                    print('Models & Optimizers Cannot be Saved')
                 else:
                     print('Saved trained models')
                 del datasets['LR'][name]['train'] , datasets['HR'][name]['train']
                 iSUP, ia, ib = iSUP+SUP_delta, ia+a_delta, ib+b_delta
-    del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
+    # del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
 
 ######## TRAINING CODE SECTION ENDS ########
 
@@ -743,7 +774,7 @@ def test(name):
     new_generator_model = dict_to_model_parse( configs_dict[gen_choice] , (None,None,len(channel_indx)) )
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
-    if os.path.isdir(save_dir) and '{}.hdf5'.format(gen_choice) in os.listdir(save_dir):
+    if os.path.isdir(save_dir) and '{}.h5'.format(gen_choice) in os.listdir(save_dir):
         my_model_load( new_generator_model ,  os.path.join(save_dir,gen_choice) )
     else:
         print('Model to Load for testing not found')
@@ -757,7 +788,7 @@ def test(name):
     for i in range(n_disk_batches):
         gc.collect()
         init_time = datetime.now()
-        feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,False,'test',True) # erase all previous dataset
+        feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=False,phase='test',erase=True,patch_approach=patch_approach)
         print('Time to read image {} is {}'.format(i+1,datetime.now()-init_time))
         init = datetime.now()        
         x_test, y_test = get_data(name,'test',indx=['LR','HR'],org=False)
@@ -783,8 +814,7 @@ def test(name):
             init = datetime.now()
             img_mat = backconvert(y_pred[0],typ='HR').astype('uint8')
             img = Image.fromarray( img_mat )
-            img.save( os.path.join(gen_store,'{}.PNG'.format(file_names[name]['test'][i])) )
-            # cv2.imwrite( os.path.join(gen_store,'{}.PNG'.format(file_names[name]['test'][i])) , cv2.cvtColor(img_mat, cv2.COLOR_BGR2RGB))
+            img.save( os.path.join(gen_store,'{}'.format(file_names[name]['test'][i])) )
             print('Time to Write Image',datetime.now()-init) # profiling
         del x_test, y_test, y_pred, datasets['LR'][name]['test'], datasets['HR'][name]['test']
     # Finding average scored of learned model
@@ -793,6 +823,9 @@ def test(name):
         print( 'Unweighted {:10s} PSNR = {}'.format(key,psnr_sum[key]/n_disk_batches) )
 
 ######## EVALUATING AND GENERATING MODEL OUTPUTS ON TEST ENDS ########
+
+
+
 
 
 if __name__ == '__main__':
