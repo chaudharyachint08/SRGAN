@@ -656,7 +656,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                             opt1 = opt_load(os.path.join(save_dir,'opt1'))
                     model = generator_model
                     model.compile(optimizer=opt1,loss='MSE',metrics=['PSNR'])
-            else train_strategy=='gan':
+            elif train_strategy=='gan':
                 print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
                 if (not epc):
                     if prev_model and os.path.isfile(os.path.join(save_dir,gan_model.name)):
