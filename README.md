@@ -50,6 +50,8 @@ Enhancing low resolution images by applying deep network to produce high resolut
 - [x] Data augmentation Class for MUlti I/O keras models
 - [x] PixelShuffle & DeShuffle keras layers
 - [x] Learnable Weighted sum keras layer
+- [x] Obtaining better results than BiCubic on coarse training
+- [x] Saving & Training resuming tricks for composite models
 - [ ] Attention Mechanism in GAN
 - [ ] Network Interpolation
 

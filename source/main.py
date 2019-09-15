@@ -63,9 +63,10 @@ warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 
 # Bool Type Arguments
-parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
 parser.add_argument("--train"              , type=eval , dest='train_flag'         , default=True)
 parser.add_argument("--test"               , type=eval , dest='test_flag'          , default=True)
+parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
+parser.add_argument("--change_optimizer"   , type=eval , dest='change_optimizer'   , default=False)
 parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=True)
 parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=True)
 parser.add_argument("--read_as_gray"       , type=eval , dest='read_as_gray'       , default=False)
@@ -163,7 +164,7 @@ file_names = {} # Global filenames for disk_batching
 def check_and_gen(name,low_path,high_path):
     "Checks for LR images in low_storage & create if doesn't exist"
     for ph in ('train','valid','test'):
-        if os.path.isdir(high_path,name,ph):
+        if os.path.isdir(os.path.join(high_path,name,ph)):
             high_store = os.path.join(high_path,name,ph)
             low_store  = os.path.join(low_path, name,ph)
             
