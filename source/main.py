@@ -381,10 +381,10 @@ def ADV_LOSS(y_true, y_pred):
 ######## KERAS FUNCTIONS UPDATE BEGINS ########
 
 keras_update_dict = {}
-for l in ('MIX_LOSS','ZERO_LOSS','DIS_LOSS','ADV_LOSS',):
-    keras_update_dict[l] = eval(l)
-for loss in ('WeightedSumLayer','PixelShuffle','DePixelShuffle'):
-    keras_update_dict[l] = eval(l)
+for loss in ('MIX_LOSS','ZERO_LOSS','DIS_LOSS','ADV_LOSS',):
+    keras_update_dict[loss] = eval(loss)
+for layer in ('WeightedSumLayer','PixelShuffle','DePixelShuffle'):
+    keras_update_dict[layer] = eval(layer)
 keras_update_dict['PSNR'] = eval('PSNR')
 
 get_custom_objects().update(keras_update_dict)
@@ -503,30 +503,11 @@ def unfreeze_model(model,recursive=False):
         if isinstance(layer, Model) and recursive:
             unfreeze_model(layer,recursive)
 
-def model_save(model,filepath):
-    save_model(model, "{}".format(filepath), overwrite=True, include_optimizer=True)
-    # with open("{}.json".format(name), "w") as json_file:
-    #     json_file.write( model.to_json() )
-    # model.save_weights("{}.h5".format(name))
-
-def model_load(filepath,custom_objects):
-    return load_model("{}".format(filepath), custom_objects=custom_objects, compile=False)
-    # model.load_weights('{}.h5'.format(filepath))
-
-# def opt_save(obj,filepath):
-#     with open(filepath,'wb') as f:
-#         pickle.dump(obj,f)
-
-# def opt_load(filepath):
-#     with open(filepath,'rb') as f:
-#         obj = f.load()
-#     return obj
-
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
         train_model , non_train_model = generator_model, discriminator_model
         loss = { 'generator':'MSE' , 'discriminator':'ADV_LOSS' , 'content':'ZERO_LOSS' }
-        if mode=='cnn':
+        if mode=='cnn': # Although this one is not used anymore
             loss_weights = { 'generator':1 , 'discriminator':0 , 'content':0 }
         elif mode=='gen':
             loss_weights = { 'generator':0 , 'discriminator':1e-3 , 'content':(1/12.75)**2 }
@@ -596,8 +577,8 @@ pass
 
 def train(name,train_strategy,dis_gen_ratio=(1,1)):
     ""
+    global generator_model, discriminator_model, content_model, gan_model
     global iSUP, ia, ib, gan_model, all_history, history
-    global generator_model, discriminator_model, content_model
     iSUP, ia, ib = SUP, a, b
     try:
         del datasets['LR'][name], datasets['HR'][name]
@@ -650,33 +631,33 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     for epc in range(outer_epochs):
         print('\nOuter Epoch {}'.format(epc+1))
         for mode_ix,mode in enumerate(modes):
-            if train_strategy=='cnn':
-                if (not epc):
-                    if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
-                        generator_model = model_load( os.path.join(save_dir,gen_choice), keras_update_dict )
-                        if os.path.isfile(os.path.join(save_dir,'opt1')):
-                            opt1 = opt_load(os.path.join(save_dir,'opt1'))
-                    model = generator_model
-                    model.compile(optimizer=opt1,loss='MSE',metrics=['PSNR'])
+            if train_strategy=='cnn' and (not epc):
+                if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
+                    if change_optimizer:
+                        generator_model.compile( optimizer=opt1, loss='MSE', metrics=['PSNR'] )
+                        generator_model.load_weights(     os.path.join(save_dir,gen_choice) )
+                    else:
+                        generator_model = load_model( os.path.join(save_dir,gen_choice),
+                            custom_objects=keras_update_dict, compile=True )
+                else:
+                    generator_model.compile( optimizer=opt1, loss='MSE', metrics=['PSNR'] )
+                model = generator_model
             elif train_strategy=='gan':
                 print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
-                if (not epc):
-                    if prev_model and os.path.isfile(os.path.join(save_dir,gan_model.name)):
-                        gan_model = model_load( os.path.join(save_dir,gan_model.name), keras_update_dict )
-                    # if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
-                    #     generator_model     = model_load( os.path.join(save_dir,gen_choice), keras_update_dict )
-                    # if prev_model and os.path.isfile(os.path.join(save_dir,dis_choice)):
-                    #     discriminator_model = model_load( os.path.join(save_dir,dis_choice), keras_update_dict )
-                    model = gan_model
                 if modes[mode_ix] != modes[(mode_ix-1)%len(modes)]:
-                    if mode=='gen':
-                        if os.path.isfile(os.path.join(save_dir,'opt1')):
-                            opt1 = opt_load(os.path.join(save_dir,'opt1'))
-                        compile_model(gan_model, mode, opt1)
-                    elif mode=='dis':
-                        if os.path.isfile(os.path.join(save_dir,'opt2')):
-                            opt2 = opt_load(os.path.join(save_dir,'opt2'))
-                        compile_model(gan_model, mode, opt2)
+                    if os.path.isfile(os.path.join(save_dir,'-'.join((gan_model.name,mode)))):
+                        if change_optimizer:
+                            compile_model( gan_model, mode, (opt1 if mode=='gen' else opt2) )
+                        else:
+                            gan_model = load_model( os.path.join(save_dir,'-'.join((gan_model.name,mode))),
+                                custom_objects=keras_update_dict, compile=True )
+                    else:
+                        compile_model( gan_model, mode, (opt1 if mode=='gen' else opt2) )
+                    if os.path.isfile(os.path.join(save_dir,gen_choice)):
+                        generator_model.load_weights(     os.path.join(save_dir,gen_choice) )
+                    if os.path.isfile(os.path.join(save_dir,dis_choice)):
+                        discriminator_model.load_weights( os.path.join(save_dir,dis_choice) )
+                    model = gan_model
 
             np.random.shuffle(file_names[name]['train'])
             iSUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
@@ -737,16 +718,12 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     os.mkdir(save_dir)
                 try:
                     if train_strategy=='cnn':
-                        model_save( generator_model , os.path.join(save_dir,gen_choice ) )
+                        save_model(generator_model, os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=True)
                     elif train_strategy=='gan':
-                        model_save( gan_model           , os.path.join(save_dir,gan_model.name) )
-                        model_save( generator_model     , os.path.join(save_dir,gen_choice ) )
-                        model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
+                        save_model(generator_model,     os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=False)
+                        save_model(discriminator_model, os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=False)
                         if modes[mode_ix] != modes[(mode_ix+1)%len(modes)]:
-                            if mode=='gen':
-                                opt_save( opt1 , os.path.join(save_dir,'opt1' ) )
-                            elif mode=='dis':
-                                opt_save( opt2 , os.path.join(save_dir,'opt2' ) )
+                            save_model(gan_model, os.path.join(save_dir,'-'.join((gan_model.name,mode))), overwrite=True, include_optimizer=True)
                 except:
                     print('Models & Optimizers Cannot be Saved')
                 else:
@@ -790,7 +767,7 @@ def test(name):
         gc.collect()
         init_time = datetime.now()
         feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=False,phase='test',erase=True,patch_approach=patch_approach)
-        print('Time to read image {} {} is {}'.format(i+1,file_names[name]['test'][i],datetime.now()-init_time))
+        print('Time to read image {}\n{} is {}'.format(file_names[name]['test'][i],i+1,datetime.now()-init_time))
         init = datetime.now()        
         x_test, y_test = get_data(name,'test',indx=['LR','HR'],org=False)
         print( 'Time to Scale Image',datetime.now()-init ) # profiling
@@ -828,7 +805,6 @@ def test(name):
 
 
 
-
 if __name__ == '__main__':
     # Building GAN model based on choices for both Training & Testing phase
     gan_model = my_gan( patch_size )
@@ -862,3 +838,25 @@ data_name = 'DIV2K'
 train_strategy = 'cnn'
 gen_choice, dis_choice, con_choice = 'baseline_gen', 'baseline_dis', 'baseline_con'
 '''
+
+
+
+
+# def model_save(model,filepath):
+#     save_model(model, "{}".format(filepath), overwrite=True, include_optimizer=True)
+#     with open("{}.json".format(name), "w") as json_file:
+#         json_file.write( model.to_json() )
+#     model.save_weights("{}.h5".format(name))
+
+# def model_load(filepath,custom_objects,compile=True):
+#     return load_model("{}".format(filepath), custom_objects=custom_objects, compile=compile)
+#     model.load_weights('{}.h5'.format(filepath))
+
+# def opt_save(obj,filepath):
+#     with open(filepath,'wb') as f:
+#         pickle.dump(obj,f)
+
+# def opt_load(filepath):
+#     with open(filepath,'rb') as f:
+#         obj = f.load()
+#     return obj
