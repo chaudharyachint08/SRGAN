@@ -35,8 +35,8 @@ def initiate(dct):
 
     def gen_last_block(X_input):
         X = Conv2D(filters=256,kernel_size=(3,3),strides=(1,1),padding='same',use_bias=True)(X_input[0])
-        # X = UpSampling2D(  size=2,interpolation=upsample_interpolation) (X)
-        X = PixelShuffle(size=2)(X)
+        X = UpSampling2D(  size=2,interpolation=upsample_interpolation) (X)
+        #  X = PixelShuffle(size=2)(X)
         X = PReLU(shared_axes=(1,2))(X)
         return X
 

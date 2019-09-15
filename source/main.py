@@ -45,7 +45,7 @@ K.set_image_data_format('channels_last')
 # Used for image.resize(target_size,PIL.Image.BICUBIC)
 import PIL
 from PIL import Image
-import os, gc, numpy as np
+import os, gc, pickle, numpy as np
 from skimage import io
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -163,26 +163,28 @@ file_names = {} # Global filenames for disk_batching
 def check_and_gen(name,low_path,high_path):
     "Checks for LR images in low_storage & create if doesn't exist"
     for ph in ('train','valid','test'):
-        low_store  = os.path.join(low_path, name,ph)
-        high_store = os.path.join(high_path,name,ph)
-        gen_images = True
-        if not os.path.isdir(low_store):
-            os.makedirs(low_store)
+        if os.path.isdir(high_path,name,ph):
+            high_store = os.path.join(high_path,name,ph)
+            low_store  = os.path.join(low_path, name,ph)
+            
             gen_images = True
-        else: #Check scale at file
-            with open(os.path.join(low_store,'scale.txt'),'r') as f:
-                if eval(f.read().strip())==scale:
-                    gen_images = False
-                else:
-                    gen_images = True
-        if gen_images:
-            with open(os.path.join(low_store,'scale.txt'),'w') as f:
-                f.write(str(scale))
-            for img_name in os.listdir(high_store):
-                image = load_img(os.path.join(high_store,img_name),color_mode='rgb')
-                image = image.resize( ((image.width//scale),(image.height//scale)) ,
-                    resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
-                image.save(os.path.join(low_store,img_name))
+            if not os.path.isdir(low_store):
+                os.makedirs(low_store)
+                gen_images = True
+            else: #Check scale at file
+                with open(os.path.join(os.path.join(low_path, name),'scale.txt'),'r') as f:
+                    if eval(f.read().strip())==scale:
+                        gen_images = False
+                    else:
+                        gen_images = True
+            if gen_images:
+                with open(os.path.join(os.path.join(low_path, name),'scale.txt'),'w') as f:
+                    f.write(str(scale))
+                for img_name in os.listdir(high_store):
+                    image = load_img(os.path.join(high_store,img_name),color_mode='rgb')
+                    image = image.resize( ((image.width//scale),(image.height//scale)) ,
+                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                    image.save(os.path.join(low_store,img_name))
 
 def on_fly_crop(mat,patch_size=patch_size,typ='HR',overlap=overlap):
     "Crop images into patches, with explicit overlap, and limit of random patches if exist"
@@ -219,7 +221,7 @@ def feed_data(name,low_path,high_path,lw_ix,up_ix,patching=True,phase='train',er
     # PIL stores image in WIDTH, HEIGHT shape format, Numpy as HEIGHT, WIDTH
     clr = 'grayscale' if read_as_gray else 'rgb'
     for img_name in file_names[name][phase][lw_ix:up_ix]:
-        image = load_img(os.path.join(data_path,name,phase,img_name),color_mode=clr)
+        image = load_img(os.path.join(high_path,name,phase,img_name),color_mode=clr)
         patch_ls, random_ix_ls = None, None
         for x,scl in zip(('HR','LR'),(scale,1)):
             if (not patching) or (patch_approach==1):
@@ -502,23 +504,23 @@ def unfreeze_model(model,recursive=False):
             unfreeze_model(layer,recursive)
 
 def model_save(model,filepath):
-    save_model(model, "{}".format(filepath), overwrite=True, optimizer=True)
+    save_model(model, "{}".format(filepath), overwrite=True, include_optimizer=True)
     # with open("{}.json".format(name), "w") as json_file:
     #     json_file.write( model.to_json() )
     # model.save_weights("{}.h5".format(name))
 
-def model_load(filepath):
-    return load_model("{}".format(filepath), custom_objects=keras_update_dict, compile=False)
+def model_load(filepath,custom_objects):
+    return load_model("{}".format(filepath), custom_objects=custom_objects, compile=False)
     # model.load_weights('{}.h5'.format(filepath))
 
-def opt_save(obj,filepath):
-    with open(filepath,'wb') as f:
-        pickle.dump(obj,f)
+# def opt_save(obj,filepath):
+#     with open(filepath,'wb') as f:
+#         pickle.dump(obj,f)
 
-def opt_load(filepath):
-    with open(filepath,'rb') as f:
-        obj = f.load()
-    return obj
+# def opt_load(filepath):
+#     with open(filepath,'rb') as f:
+#         obj = f.load()
+#     return obj
 
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
@@ -651,7 +653,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
             if train_strategy=='cnn':
                 if (not epc):
                     if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
-                        generator_model = model_load( os.path.join(save_dir,gen_choice) )
+                        generator_model = model_load( os.path.join(save_dir,gen_choice), keras_update_dict )
                         if os.path.isfile(os.path.join(save_dir,'opt1')):
                             opt1 = opt_load(os.path.join(save_dir,'opt1'))
                     model = generator_model
@@ -660,11 +662,11 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
                 if (not epc):
                     if prev_model and os.path.isfile(os.path.join(save_dir,gan_model.name)):
-                        gan_model = model_load( os.path.join(save_dir,gan_model.name) )
+                        gan_model = model_load( os.path.join(save_dir,gan_model.name), keras_update_dict )
                     # if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
-                    #     generator_model     = model_load( os.path.join(save_dir,gen_choice) )
+                    #     generator_model     = model_load( os.path.join(save_dir,gen_choice), keras_update_dict )
                     # if prev_model and os.path.isfile(os.path.join(save_dir,dis_choice)):
-                    #     discriminator_model = model_load( os.path.join(save_dir,dis_choice) )
+                    #     discriminator_model = model_load( os.path.join(save_dir,dis_choice), keras_update_dict )
                     model = gan_model
                 if modes[mode_ix] != modes[(mode_ix-1)%len(modes)]:
                     if mode=='gen':
@@ -736,11 +738,10 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 try:
                     if train_strategy=='cnn':
                         model_save( generator_model , os.path.join(save_dir,gen_choice ) )
-                        opt_save( opt1 , os.path.join(save_dir,'opt1' ) )
                     elif train_strategy=='gan':
                         model_save( gan_model           , os.path.join(save_dir,gan_model.name) )
-                        # model_save( generator_model     , os.path.join(save_dir,gen_choice ) )
-                        # model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
+                        model_save( generator_model     , os.path.join(save_dir,gen_choice ) )
+                        model_save( discriminator_model , os.path.join(save_dir,dis_choice ) )
                         if modes[mode_ix] != modes[(mode_ix+1)%len(modes)]:
                             if mode=='gen':
                                 opt_save( opt1 , os.path.join(save_dir,'opt1' ) )
@@ -775,7 +776,7 @@ def test(name):
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
     if os.path.isdir(save_dir) and '{}.h5'.format(gen_choice) in os.listdir(save_dir):
-        my_model_load( new_generator_model ,  os.path.join(save_dir,gen_choice) )
+        new_generator_model.load_weights(os.path.join(save_dir,gen_choice))
     else:
         print('Model to Load for testing not found')
     print('Time to Load Weights',datetime.now()-init) # profiling
@@ -789,7 +790,7 @@ def test(name):
         gc.collect()
         init_time = datetime.now()
         feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=False,phase='test',erase=True,patch_approach=patch_approach)
-        print('Time to read image {} is {}'.format(i+1,datetime.now()-init_time))
+        print('Time to read image {} {} is {}'.format(i+1,file_names[name]['test'][i],datetime.now()-init_time))
         init = datetime.now()        
         x_test, y_test = get_data(name,'test',indx=['LR','HR'],org=False)
         print( 'Time to Scale Image',datetime.now()-init ) # profiling
