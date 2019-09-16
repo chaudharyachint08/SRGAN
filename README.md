@@ -29,8 +29,8 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
 
 ## Data-sets
-- DIV2k and Flickr2K datasest (jointly DIV2F) for training
-- Set5, Set14, BSD100, BSD300 for testing purposes
+- DIV2K and Flickr2K datasest (jointly DIV2F) for training
+- Set5, Set14, BSDS100, Urban100, Manga109 for testing purposes
 
      
 ## Source Files
@@ -41,20 +41,20 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
 ## Implementation
 - [x] Data reading & LR generation, with support for heterogenous & multiformat images
-- [x] Usage of Model API for model as layer, dictionary based arguments & non-comparative model training 
-- [x] GAN model generator with sub-model generation, and configuring layers for model API
 - [x] Disk batching for control over memory usage by limited amount of data feeding
-- [x] MIX loss function with its Adaptive variant
+- [x] Model as layer, dictionary based arguments & non-comparative model training 
+- [x] GAN model with sub-models, and configuring layers for model API
 - [x] Model parser function for easier prototyping
-- [x] Plotting functions for Training progress
-- [x] Data augmentation Class for MUlti I/O keras models
 - [x] PixelShuffle & DeShuffle keras layers
 - [x] Learnable Weighted sum keras layer
-- [x] Obtaining better results than BiCubic on coarse training
+- [x] Plotting functions for Training progress
 - [x] Saving & Training resuming tricks for composite models
+- [x] Data augmentation Class for MUlti I/O keras models
+- [x] MIX loss function with its Adaptive variant
+- [ ] Bicubic UpSampling layer
+- [ ] Hybrid Padding for Testing on very largen images
 - [ ] Attention Mechanism in GAN
 - [ ] Network Interpolation
-
            
 ## Learning
 - Residual learning helps a lot in training of deep neural networks
@@ -63,27 +63,27 @@ Enhancing low resolution images by applying deep network to produce high resolut
 
 
 ## Results
+
 ### SRResNet Results
 #### Normal Training PSNR Gain
 DataSet Name | Minimum | Maximum | Mean    | Median  | Standard Deviation
 ------------ | :-----: | :-----: | :-----: | :-----: | :-----: 
-BSDS100      | 0.0241  | 4.5538  | 1.2028  | 1.0678  | 0.8341
 DIV2K        | 0.1340  | 3.6828  | 1.3501  | 1.1362  | 0.7683
-Manga109     | 0.4461  | 6.0257  | 3.0673  | 3.0346  | 0.9606
-Set14        | 0.3126  | 3.3328  | 1.4685  | 1.2384  | 0.9801
 Set5         | 0.6227  | 4.0698  | 2.1655  | 1.9665  | 1.3567
+Set14        | 0.3126  | 3.3328  | 1.4685  | 1.2384  | 0.9801
+BSDS100      | 0.0241  | 4.5538  | 1.2028  | 1.0678  | 0.8341
 Urban100     | 0.3071  | 6.3944  | 1.6101  | 1.2864  | 1.0600
+Manga109     | 0.4461  | 6.0257  | 3.0673  | 3.0346  | 0.9606
 
 #### Fine Tuning PSNR Gain
 DataSet Name | Minimum | Maximum | Mean    | Median  | Standard Deviation
 ------------ | :-----: | :-----: | :-----: | :-----: | :-----: 
-BSDS100      | 0.1496  | 5.6223  | 1.4077  | 1.2298  | 0.9561
 DIV2K        | 0.4961  | 5.2995  | 1.6905  | 1.4589  | 1.0193
-Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
-Set14        | 0.4086  | 3.7932  | 1.7533  | 1.5810  | 1.0708
 Set5         | 0.8236  | 4.4487  | 2.6640  | 3.0197  | 1.4554
+Set14        | 0.4086  | 3.7932  | 1.7533  | 1.5810  | 1.0708
+BSDS100      | 0.1496  | 5.6223  | 1.4077  | 1.2298  | 0.9561
 Urban100     | 0.3184  | 6.7475  | 1.8952  | 1.5763  | 1.1998
-
+Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 
 
@@ -91,6 +91,7 @@ Urban100     | 0.3184  | 6.7475  | 1.8952  | 1.5763  | 1.1998
 
 ## Outputs
 <img src="./images/outputs.PNG"         style="width: 100%;height: auto;" alt="outputs"  ></img><br>
+
 
 
 ## Usage

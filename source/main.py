@@ -647,7 +647,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
                 if modes[mode_ix] != modes[(mode_ix-1)%len(modes)]:
                     if os.path.isfile(os.path.join(save_dir,'-'.join((gan_model.name,mode)))):
-                        if change_optimizer:
+                        if (not epc) and change_optimizer:
                             compile_model( gan_model, mode, (opt1 if mode=='gen' else opt2) )
                         else:
                             gan_model = load_model( os.path.join(save_dir,'-'.join((gan_model.name,mode))),
@@ -695,9 +695,12 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True)
                     # datagen.fit(x_train) # this is not given in any GitHUb discussion or StackOverflow in README.md
                     if train_strategy=='cnn': # flow for single inpute keras model
-                        flow = datagen.flow(x_train, y_train,batch_size=memory_batch)
-                    else:
-                        flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch)
+                        flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=True)
+                    elif train_strategy=='gan':
+                        if mode=='gen':
+                            flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=True)
+                        elif mode=='dis':
+                            flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=False)
                     history = model.fit_generator(flow,epochs=inner_epochs,validation_data=(x_valid, y_valid))
                 else:
                     history = model.fit(x=x_train,y=y_train,validation_data=(x_valid,y_valid),epochs=inner_epochs,batch_size=memory_batch)
@@ -731,7 +734,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     print('Saved trained models')
                 del datasets['LR'][name]['train'] , datasets['HR'][name]['train']
                 iSUP, ia, ib = iSUP+SUP_delta, ia+a_delta, ib+b_delta
-    # del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
+    del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
 
 ######## TRAINING CODE SECTION ENDS ########
 

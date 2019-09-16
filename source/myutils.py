@@ -102,9 +102,9 @@ class WeightedSumLayer(Layer):
         return input_shape[0]
 
 
-class MultiImageFlow(Sequence):
+class MultiImageFlow(Sequence): # Check, will not work directly as Augmentaion is done only on X
     "Data Augmentation Flow for Multi - IO keras models, with shared ImageDataGenerator"
-    def __init__(self,datagen, X, Y, batch_size):
+    def __init__(self,datagen, X, Y, batch_size,augment_labels=False,seed=42):
         # type of datagen should be 'unit' or either same as of X
         self.datagen = datagen
         if (type(X) in (list, tuple)):
@@ -114,7 +114,7 @@ class MultiImageFlow(Sequence):
                 self.datagen = dict(enumerate(self.datagen))
         elif (type(X) is dict):
             if (type(self.datagen) is not dict):
-                self.datagen = { i:self.datagen for i in X }
+                self.datagen = { i:deepcopy(self.datagen) for i in X }
         else:
             self.datagen_type = "unit"
             self.datagen = dict(enumerate( [self.datagen] ))
@@ -134,8 +134,8 @@ class MultiImageFlow(Sequence):
             for key in eval('self.{0}'.format(ele)):
                 x = self.X[key]                    if ele=='X' else self.X[list(self.X.keys())[0]]
                 y = self.Y[list(self.Y.keys())[0]] if ele=='X' else self.Y[key]
-                exec( 'self.{0}_gen_flow[{1}] = self.datagen[{2}].flow( x , y , batch_size=batch_size)'.format(
-                    ele,repr(key),(repr(key) if ele=='X' else repr(list(self.datagen.keys())[0]))) )
+                exec( 'self.{0}_gen_flow[{1}] = self.datagen[{2}].flow( x , y , batch_size=batch_size,seed={3})'.format(
+                    ele,repr(key),(repr(key) if ele=='X' else repr(list(self.datagen.keys())[0])),seed) )
 
     def __len__(self):
         """It is mandatory to implement it on Keras Sequence"""
