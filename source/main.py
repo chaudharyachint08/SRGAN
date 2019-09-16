@@ -745,7 +745,7 @@ def test(name):
     # Working each image at a time for full generation
     disk_batch = 1 # Taking disk_batch to be 1 as heterogenous images
     n_disk_batches = len(file_names[name]['test'][:test_images_limit])
-    test_csv = open(os.path.join('.','..','experiments','{} {}.csv'.format(train_strategy,gan_model.name)),'w')
+    test_csv = open(os.path.join('.','..','experiments','{} {} {}.csv'.format(name,train_strategy,gan_model.name)),'w')
     print( 'index,img_name,initial_psnr,final_psnr,psnr_gain' , file=test_csv )
     test_csv.close()
     psnr_sum = {}
@@ -753,7 +753,7 @@ def test(name):
     new_generator_model = dict_to_model_parse( configs_dict[gen_choice] , (None,None,len(channel_indx)) )
     print('Time to Build New Model',datetime.now()-init,end='\n\n') # profiling
     init = datetime.now()
-    if os.path.isdir(save_dir) and '{}.h5'.format(gen_choice) in os.listdir(save_dir):
+    if os.path.isdir(save_dir) and '{}'.format(gen_choice) in os.listdir(save_dir):
         new_generator_model.load_weights(os.path.join(save_dir,gen_choice))
     else:
         print('Model to Load for testing not found')
@@ -764,6 +764,7 @@ def test(name):
             shutil.rmtree(gen_store)
         if not os.path.isdir(gen_store):
             os.makedirs(gen_store)
+    print( '{} Images to Test on'.format((n_disk_batches)) )
     for i in range(n_disk_batches):
         gc.collect()
         init_time = datetime.now()
@@ -785,7 +786,7 @@ def test(name):
         print('Time to Find and Store PSNRs',datetime.now()-init) # profiling
         print('Initial PSNR = {}, Final PSNR = {}, Gained PSNR = {}'.format(psnr_i,psnr_f,psnr_g))
         init = datetime.now()
-        test_csv = open(os.path.join('.','..','experiments','{} {}.csv'.format(train_strategy,gan_model.name)),'a')
+        test_csv = open(os.path.join('.','..','experiments','{} {} {}.csv'.format(name,train_strategy,gan_model.name)),'a')
         print( '{},{},{},{},{}'.format(i+1,file_names[name]['test'][i],psnr_i,psnr_f,psnr_g) , file=test_csv )
         test_csv.close()
         print('Time to Update CSV file',datetime.now()-init) # profiling
@@ -812,9 +813,9 @@ if __name__ == '__main__':
     datasets = {}
     if train_flag:
         # 
-        train(data_name,'gan',(1,1))
+        # train(data_name,'gan',(1,1))
     if test_flag:
-        test(data_name)
+        # test(data_name)
 
 
 ######## UNUSED CODE SECTION BEGINS ########
