@@ -89,12 +89,8 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 ## Outputs
 
-<p float="left">
-	<img src="./images/outputs/1LR0807.png" alt="Bicubic"        style="width:25%">
-	<img src="./images/outputs/2SRResNet0807.png" alt="SRResNet" style="width:25%">
-	<img src="./images/outputs/3SRGan0807.png" alt="SRGAN"       style="width:25%">
-	<img src="./images/outputs/4HR0807.png" alt="Ground Truth"   style="width:25%">
- <p>
+<img src="./images/outputs/Grid.png" alt="Image Results" style="width:100%">
+
 
 
 ## Usage
