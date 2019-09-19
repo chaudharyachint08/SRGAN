@@ -89,31 +89,7 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 ## Outputs
 
-<style>
-* {
-  box-sizing: border-box;
-}
-
-.column {
-  float: left;
-  width: 25.00%;
-  padding: 5px;
-}
-
-/* Clearfix (clear floats) */
-.row::after {
-  content: "";
-  clear: both;
-  display: table;
-}
-
-/* Responsive layout - makes the three columns stack on top of each other instead of next to each other */
-@media screen and (max-width: 500px) {
-  .column {
-    width: 100%;
-  }
-}
-</style>
+<link rel="stylesheet" href="css/style.css">
 
 <div class="row">
   <div class="column">
