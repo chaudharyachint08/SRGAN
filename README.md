@@ -89,7 +89,6 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 ## Outputs
 
-<!--
 <style>
 * {
   box-sizing: border-box;
@@ -97,7 +96,7 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 .column {
   float: left;
-  width: 33.33%;
+  width: 25.00%;
   padding: 5px;
 }
 
@@ -118,25 +117,18 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 <div class="row">
   <div class="column">
-    <img src="img_snow.jpg" alt="Snow" style="width:100%">
+    <img src="./images/outputs/1LR0807.png" alt="Snow" style="width:100%">
   </div>
   <div class="column">
-    <img src="img_forest.jpg" alt="Forest" style="width:100%">
+    <img src="./images/outputs/2SRResNet0807.png" alt="Forest" style="width:100%">
   </div>
   <div class="column">
-    <img src="img_mountains.jpg" alt="Mountains" style="width:100%">
+    <img src="./images/outputs/3SRGan0807.png" alt="Mountains" style="width:100%">
+  </div>
+  <div class="column">
+    <img src="./images/outputs/4HR0807.png" alt="Mountains" style="width:100%">
   </div>
 </div>
-
-
--->
-
-
-
-<img src="./images/outputs/1LR0807.png"       style="width: 25%;height: auto;" alt="BiCubic"      ></img>
-<img src="./images/outputs/2SRResNet0807.png" style="width: 25%;height: auto;" alt="SRResNet"     ></img>
-<img src="./images/outputs/3SRGan0807.png"    style="width: 25%;height: auto;" alt="SRGan"        ></img>
-<img src="./images/outputs/4HR0807.png"       style="width: 25%;height: auto;" alt="Ground Truth" ></img>
 
 
 ## Usage
