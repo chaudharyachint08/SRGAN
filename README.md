@@ -88,10 +88,55 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 
 ## Outputs
-<img src="./images/outputs/1LR0807.png"       style="width: 25%;height: auto;" alt="BiCubic"      ></img><br>
-<img src="./images/outputs/2SRResNet0807.png" style="width: 25%;height: auto;" alt="SRResNet"     ></img><br>
-<img src="./images/outputs/3SRGan0807.png"    style="width: 25%;height: auto;" alt="SRGan"        ></img><br>
-<img src="./images/outputs/4HR0807.png"       style="width: 25%;height: auto;" alt="Ground Truth" ></img><br>
+
+<!--
+<style>
+* {
+  box-sizing: border-box;
+}
+
+.column {
+  float: left;
+  width: 33.33%;
+  padding: 5px;
+}
+
+/* Clearfix (clear floats) */
+.row::after {
+  content: "";
+  clear: both;
+  display: table;
+}
+
+/* Responsive layout - makes the three columns stack on top of each other instead of next to each other */
+@media screen and (max-width: 500px) {
+  .column {
+    width: 100%;
+  }
+}
+</style>
+
+<div class="row">
+  <div class="column">
+    <img src="img_snow.jpg" alt="Snow" style="width:100%">
+  </div>
+  <div class="column">
+    <img src="img_forest.jpg" alt="Forest" style="width:100%">
+  </div>
+  <div class="column">
+    <img src="img_mountains.jpg" alt="Mountains" style="width:100%">
+  </div>
+</div>
+
+
+-->
+
+
+
+<img src="./images/outputs/1LR0807.png"       style="width: 25%;height: auto;" alt="BiCubic"      ></img>
+<img src="./images/outputs/2SRResNet0807.png" style="width: 25%;height: auto;" alt="SRResNet"     ></img>
+<img src="./images/outputs/3SRGan0807.png"    style="width: 25%;height: auto;" alt="SRGan"        ></img>
+<img src="./images/outputs/4HR0807.png"       style="width: 25%;height: auto;" alt="Ground Truth" ></img>
 
 
 ## Usage
