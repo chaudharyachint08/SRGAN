@@ -5,7 +5,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
 import os
 
-batch_size, num_classes, epochs = 32, 10, 100
+num_classes = 10
 
 # The data, split between train and test sets:
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -16,6 +16,7 @@ print(x_test.shape[0], 'test samples')
 # Data data preprocessing for X & Y data
 y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
+x_train, x_test = x_train.reshape(x_train.shape+(1,)), x_test.reshape(x_test.shape+(1,))
 x_train , x_test = x_train.astype('float32')/255 , x_test.astype('float32')/255
 
 n1,n2, n3 = 128,64,32
@@ -26,13 +27,13 @@ model.add(Conv2D(n1, (5, 5), padding='same',input_shape=x_train.shape[1:]))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 
-model.add(Conv2D(n2, (5, 5), padding='same',input_shape=x_train.shape[1:]))
+model.add(Conv2D(n2, (5, 5), padding='same'))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 
 model.add(Flatten())
 
-model.add(Dense(512))
+model.add(Dense(n3))
 model.add(Activation('relu'))
 
 model.add(Dropout(0.5))

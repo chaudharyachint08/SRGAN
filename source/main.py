@@ -51,6 +51,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
 from IPython.display import display
+from numba import cuda
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -66,9 +67,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--train"              , type=eval , dest='train_flag'         , default=True)
 parser.add_argument("--test"               , type=eval , dest='test_flag'          , default=True)
 parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
-parser.add_argument("--change_optimizer"   , type=eval , dest='change_optimizer'   , default=False)
-parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=True)
-parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=True)
+parser.add_argument("--change_optimizer"   , type=eval , dest='change_optimizer'   , default=True)
+parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation'  , default=False)
+parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=False)
 parser.add_argument("--read_as_gray"       , type=eval , dest='read_as_gray'       , default=False)
 parser.add_argument("--gclip"              , type=eval , dest='gclip'              , default=False)
 # Int Type Arguments
@@ -117,7 +118,8 @@ parser.add_argument("--dis_choice"         , type=str , dest='dis_choice'       
 parser.add_argument("--con_choice"         , type=str , dest='con_choice'          , default='baseline_con')
 parser.add_argument("--attention"          , type=str , dest='attention'           , default='sigmoid')
 parser.add_argument("--precision"          , type=str , dest='float_precision'     , default='float32')
-parser.add_argument("--optimizer"          , type=str , dest='optimizer'           , default='Adam')
+parser.add_argument("--optimizer1"         , type=str , dest='optimizer1'          , default='Adam')
+parser.add_argument("--optimizer2"         , type=str , dest='optimizer2'          , default='Adam')
 parser.add_argument("--name"               , type=str , dest='data_name'           , default='sample')
 parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='cnn') # other is 'gan'
 parser.add_argument("--high_path"          , type=str , dest='high_path'           , default=os.path.join('.','..','data','HR'))
@@ -287,6 +289,36 @@ def show_ix(mat,ix,preproc=True,typ='HR',ipython=True):
         display(img)
     else:
         img.show()
+
+def show_patches(name,ix=0,images_limit=5,patches_limit = 20,patch_approach=1):
+    "Function to observe patches made from with of approach in datasets"
+    global datasets, file_names
+
+    train_strategy = 'cnn'
+
+    datasets = {}
+    datasets[name] = {}
+    file_names[name] = {}
+
+    file_names[name]['test'] = sorted(os.listdir(os.path.join(high_path,name,'test')))
+    np.random.shuffle(file_names[name]['test'])
+    feed_data(name,low_path,high_path,0,images_limit,True,'test',False,patch_approach)
+
+    x_test  = get_data(name,'test',indx=['LR','HR'],org=False)
+    x_test  = {    'lr_input': x_test[0] ,    'hr_input': x_test[1]    }
+    init_PSNR = get_IPSNR(x_test['hr_input'],x_test['lr_input'],pred_mode='LR')
+    x_test, y_test = x_test['lr_input'], x_test['hr_input']
+
+    ls = np.arange(len(x_test))
+    np.random.shuffle(ls)
+    ls = ls[:patches_limit]
+
+    for ix in ls:
+        show_ix(x_test,ix,typ='LR')
+        show_ix(y_test,ix,typ='HR')
+        # show_ix(datasets['LR'][name]['valid'],ix,typ='HR',preproc=False)
+        # show_ix(datasets['HR'][name]['valid'],ix,typ='HR',preproc=False)
+        print()
 
 ######## DATA STORAGE, READING & PROCESSING FUNCTIONS ENDS ########
 
@@ -507,14 +539,14 @@ def unfreeze_model(model,recursive=False):
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
         train_model , non_train_model = generator_model, discriminator_model
-        loss = { 'generator':'MSE' , 'discriminator':'ADV_LOSS' , 'content':'ZERO_LOSS' }
+        loss = { 'generator':'MAE' , 'discriminator':'ADV_LOSS' , 'content':'ZERO_LOSS' }
         if mode=='cnn': # Although this one is not used anymore
             loss_weights = { 'generator':1 , 'discriminator':0 , 'content':0 }
         elif mode=='gen':
-            loss_weights = { 'generator':0 , 'discriminator':1e-3 , 'content':(1/12.75)**2 }
+            loss_weights = { 'generator':1e-2 , 'discriminator':5e-3 , 'content':(1/12.75)**2 }
     elif mode=='dis':
         non_train_model , train_model = generator_model, discriminator_model
-        loss = { 'generator':'MSE' , 'discriminator':'DIS_LOSS' , 'content':'ZERO_LOSS' }
+        loss = { 'generator':'MAE' , 'discriminator':'DIS_LOSS' , 'content':'ZERO_LOSS' }
         loss_weights = { 'generator':0 , 'discriminator':1 , 'content':0 }
     metrics = {'generator':'PSNR'}
     freeze_model(   content_model   )
@@ -618,20 +650,25 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     val_init_PSNR = get_IPSNR(x_valid['hr_input'],x_valid['lr_input'],pred_mode='LR')
     if train_strategy=='cnn':
         x_valid, y_valid = x_valid['lr_input'], x_valid['hr_input']
-    # Selecting optimizer for training
-    if optimizer == 'Adam':
+    # Selecting optimizers for training
+    if optimizer1 == 'Adam':
         opt1 = keras.optimizers.Adam( lr=lr, decay=decay )
-        opt2 = keras.optimizers.Adam( lr=lr, decay=decay )
-    elif optimizer == 'SGD':
+    elif optimizer1 == 'SGD':
         opt1 = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
+    else:   
+        raise Exception('Unexpected Optimizer1 than two classics')
+    if optimizer2 == 'Adam':
+        opt2 = keras.optimizers.Adam( lr=lr, decay=decay )
+    elif optimizer2 == 'SGD':
         opt2 = keras.optimizers.SGD( lr=lr, decay=decay, momentum=momentum )
     else:   
-        raise Exception('Unexpected Optimizer than two classics')
+        raise Exception('Unexpected Optimizer2 than two classics')
     # collecting history from all opechs, and oter_epochs training loop
     all_history = None
     for epc in range(outer_epochs):
         print('\nOuter Epoch {}'.format(epc+1))
-        for mode_ix,mode in enumerate(modes):
+        mode_ix = 0
+        while mode_ix < len(modes):
             if train_strategy=='cnn' and (not epc):
                 if prev_model and os.path.isfile(os.path.join(save_dir,gen_choice)):
                     if change_optimizer:
@@ -644,22 +681,32 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     generator_model.compile( optimizer=opt1, loss='MSE', metrics=['PSNR'] )
                 model = generator_model
             elif train_strategy=='gan':
-                print( 'Executing GAN in {} mode'.format('GENERATOR' if mode=='gen' else 'DISCRIMINATOR') )
+                print( 'Executing GAN in {} mode'.format('GENERATOR' if modes[mode_ix]=='gen' else 'DISCRIMINATOR') )
                 if modes[mode_ix] != modes[(mode_ix-1)%len(modes)]:
-                    if os.path.isfile(os.path.join(save_dir,'-'.join((gan_model.name,mode)))):
+#                    K.clear_session()
+#                    if tf.test.is_gpu_available():
+#                       cuda.select_device(0) ; cuda.close()
+#                     for obj_name in ('generator_model', 'discriminator_model', 'content_model', 'gan_model', 'model'):
+#                         try:
+#                             exec('del {}'.format(x),locals(),globals())
+#                         except:
+#                             pass
+#                     gc.collect()
+
+                    if os.path.isfile(os.path.join(save_dir,'-'.join((gan_model.name,modes[mode_ix])))):
                         if (not epc) and change_optimizer:
-                            compile_model( gan_model, mode, (opt1 if mode=='gen' else opt2) )
+                            compile_model( gan_model, modes[mode_ix], (opt1 if modes[mode_ix]=='gen' else opt2) )
                         else:
-                            gan_model = load_model( os.path.join(save_dir,'-'.join((gan_model.name,mode))),
+                            gan_model = load_model( os.path.join(save_dir,'-'.join((gan_model.name,modes[mode_ix]))),
                                 custom_objects=keras_update_dict, compile=True )
                     else:
-                        compile_model( gan_model, mode, (opt1 if mode=='gen' else opt2) )
+                        compile_model( gan_model, modes[mode_ix], (opt1 if modes[mode_ix]=='gen' else opt2) )
                     if os.path.isfile(os.path.join(save_dir,gen_choice)):
                         generator_model.load_weights(     os.path.join(save_dir,gen_choice) )
                     if os.path.isfile(os.path.join(save_dir,dis_choice)):
                         discriminator_model.load_weights( os.path.join(save_dir,dis_choice) )
                     model = gan_model
-
+                    
             np.random.shuffle(file_names[name]['train'])
             iSUP = int(np.round(iSUP)) if int(np.round(iSUP))%2 else int(np.round(iSUP))+1
             
@@ -695,12 +742,9 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True)
                     # datagen.fit(x_train) # this is not given in any GitHUb discussion or StackOverflow in README.md
                     if train_strategy=='cnn': # flow for single inpute keras model
-                        flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=True)
-                    elif train_strategy=='gan':
-                        if mode=='gen':
-                            flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=True)
-                        elif mode=='dis':
-                            flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch,augment_labels=False)
+                        flow = datagen.flow(x_train, y_train,batch_size=memory_batch)
+                    else:
+                        flow = MultiImageFlow(datagen,x_train,y_train,batch_size=memory_batch)
                     history = model.fit_generator(flow,epochs=inner_epochs,validation_data=(x_valid, y_valid))
                 else:
                     history = model.fit(x=x_train,y=y_train,validation_data=(x_valid,y_valid),epochs=inner_epochs,batch_size=memory_batch)
@@ -712,7 +756,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                     history = history.history
                     history['IPSNR']     = [ (i-train_init_PSNR) for i in history['PSNR'    ] ]
                     history['val_IPSNR'] = [ (i-val_init_PSNR)   for i in history['val_PSNR'] ]
-                del x_train, y_train
+                del x_train, y_train, datasets['LR'][name]['train'] , datasets['HR'][name]['train']
                 all_history = history if (all_history is None) else { i:(all_history[i]+history[i])for i in history }
                 plot_history(all_history) # Plotting progress after each disk batch
                 #Saving Trained model, after all QP values of currect disk_batch were processed
@@ -725,15 +769,31 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                         save_model(generator_model, os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=True)
                     elif train_strategy=='gan':
                         save_model(generator_model,     os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=False)
-                        save_model(discriminator_model, os.path.join(save_dir,gen_choice), overwrite=True, include_optimizer=False)
+                        save_model(discriminator_model, os.path.join(save_dir,dis_choice), overwrite=True, include_optimizer=False)
                         if modes[mode_ix] != modes[(mode_ix+1)%len(modes)]:
-                            save_model(gan_model, os.path.join(save_dir,'-'.join((gan_model.name,mode))), overwrite=True, include_optimizer=True)
+                            save_model(gan_model, os.path.join(save_dir,'-'.join((gan_model.name,modes[mode_ix]))), overwrite=True, include_optimizer=True)
                 except:
                     print('Models & Optimizers Cannot be Saved')
                 else:
                     print('Saved trained models')
-                del datasets['LR'][name]['train'] , datasets['HR'][name]['train']
                 iSUP, ia, ib = iSUP+SUP_delta, ia+a_delta, ib+b_delta
+                if train_strategy=='gan':
+                    if modes[mode_ix] != modes[(mode_ix+1)%len(modes)]:
+                        if   modes[mode_ix]=='dis':
+                            gen_loss = all_history['generator_loss'    ][-1]
+                            dis_loss = all_history['discriminator_loss'][-1]
+                            con_loss = all_history['content_loss'      ][-1]
+                            if dis_loss > (-1*np.log(0+60/100)):
+                                print('Resetting to Discriminator',dis_loss,(-1*np.log(0+60/100)))
+                                mode_ix -= 1
+                        elif modes[mode_ix]=='gen':
+                            gen_loss = all_history['generator_loss'    ][-1]
+                            dis_loss = all_history['discriminator_loss'][-1]
+                            con_loss = all_history['content_loss'      ][-1]
+#                            if dis_loss > (-1*np.log(1-60/100)):
+#                                 print('Resetting to Generator',dis_loss,(-1*np.log(1-60/100)))
+#                                 mode_ix -= 1
+            mode_ix += 1
     del x_valid , y_valid, datasets['LR'][name]['valid'] , datasets['HR'][name]['valid']
 
 ######## TRAINING CODE SECTION ENDS ########
@@ -743,6 +803,9 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
 
 def test(name):
     ""
+ #   K.clear_session()
+ #   if tf.test.is_gpu_available():
+ #       cuda.select_device(0) ; cuda.close()
     file_names[name] = {}
     file_names[name]['test'] = sorted(os.listdir(os.path.join(high_path,name,'test')))
     # Working each image at a time for full generation
@@ -825,23 +888,53 @@ if __name__ == '__main__':
 
 "Below Code has Variable to Run in Google Colab"
 '''
+SRResNet TRAINING FOR GOOGLE COLAB
+
 # Bool Type Arguments
-train_flag, test_flag = True, True
-prev_model = False
-data_augmentation = False
 imwrite = True
+train_flag, test_flag = True, True
+prev_model, change_optimizer, data_augmentation = False, False, False
 # Int Type Arguments
-B = 4
-patch_size, patches_limit = 96, None
-outer_epochs, inner_epochs = 4, 5
-disk_batch, memory_batch   = 10, 32
-disk_batches_limit, valid_images_limit, test_images_limit = None, 5, None
+patches_limit = None
+patch_approach = 1
+min_LR, max_LR = 0,1
+min_HR, max_HR = -1,1
+outer_epochs, inner_epochs = 3, 5
+disk_batch, memory_batch   = 5, 32
+disk_batches_limit, valid_images_limit, test_images_limit = 3, 15, 10
 # Float Type Arguments
-lr, flr, decay, overlap = 0.0003, None, 0.0, 0.0
+overlap = 0.0
+lr, flr, decay, momentum = 100e-5, 10e-5, 0.0, 0.8
 # String Type Arguments
-data_name = 'DIV2K'
+optimizer1 = 'Adam'
 train_strategy = 'cnn'
-gen_choice, dis_choice, con_choice = 'baseline_gen', 'baseline_dis', 'baseline_con'
+data_name = 'DIV2K'
+
+
+
+
+SRGAN TRAINING FOR GOOGLE COLAB
+
+# Bool Type Arguments
+imwrite = True
+train_flag, test_flag = True, True
+prev_model, change_optimizer, data_augmentation = False, False, False
+# Int Type Arguments
+patches_limit = None
+patch_approach = 1
+min_LR, max_LR = 0,1
+min_HR, max_HR = -1,1
+outer_epochs, inner_epochs = 2, 3
+disk_batch, memory_batch   = 10, 32
+disk_batches_limit, valid_images_limit, test_images_limit   = 5, 5, 10
+# Float Type Arguments
+overlap = 0.0
+lr, flr, decay, momentum = 5e-5, None, 0.0, 0.8
+# String Type Arguments
+optimizer1 = 'Adam'
+optimizer2 = 'Adam'
+train_strategy = 'gan'
+data_name = 'DIV2K'
 '''
 
 

@@ -49,11 +49,11 @@ Enhancing low resolution images by applying deep network to produce high resolut
 - [x] Learnable Weighted sum keras layer
 - [x] Plotting functions for Training progress
 - [x] Saving & Training resuming tricks for composite models
-- [x] Data augmentation Class for MUlti I/O keras models
 - [x] MIX loss function with its Adaptive variant
-- [ ] Bicubic UpSampling layer
-- [ ] Hybrid Padding for Testing on very largen images
+- [ ] Data augmentation Class for MUlti I/O keras models
+- [ ] Hybrid Padding for Testing on very large images
 - [ ] Attention Mechanism in GAN
+- [ ] Bicubic UpSampling layer
 - [ ] Network Interpolation
            
 ## Learning
@@ -87,11 +87,11 @@ Manga109     | 1.2940  | 6.6388  | 3.8610  | 3.7790  | 1.1522
 
 
 
-
-
 ## Outputs
-<img src="./images/outputs.PNG"         style="width: 100%;height: auto;" alt="outputs"  ></img><br>
-
+<img src="./images/outputs/1LR0807.png"       style="width: 25%;height: auto;" alt="BiCubic"      ></img><br>
+<img src="./images/outputs/2SRResNet0807.png" style="width: 25%;height: auto;" alt="SRResNet"     ></img><br>
+<img src="./images/outputs/3SRGan0807.png"    style="width: 25%;height: auto;" alt="SRGan"        ></img><br>
+<img src="./images/outputs/4HR0807.png"       style="width: 25%;height: auto;" alt="Ground Truth" ></img><br>
 
 
 ## Usage
