@@ -444,7 +444,7 @@ def dict_to_model_parse(config,*ip_shapes):
         else:
             model = con_model
         if ('clpre_act' in config) and (not config['clpre_act'][0]):
-                model.layers[-1].activation = None
+            model.layers[-1].activation = None
     else: # Setting up architecture for GNERATOR/DISCRIMINATOR
         target, tensors = len(ip_shapes), [ Input(i) for i in ip_shapes ]
         while True:
@@ -465,7 +465,7 @@ def dict_to_model_parse(config,*ip_shapes):
             multi_input_lyr, nxt_lyr = False, None # if layer has multiple inputs (MERGE/BLOCK)
             if   lyr_typ in core_lyrs:
                 lyr_spec = core_lyrs[lyr_typ]            
-            elif lyr_typ in ('convo','usmpl','poolg'):
+            elif lyr_typ in ('convo','usmpl','zpdng'):
                 if lyr_typ == 'convo':
                     lyr_spec = config[lyr_typ+'_sub'][cat_ix]
                 else:
@@ -480,7 +480,7 @@ def dict_to_model_parse(config,*ip_shapes):
             elif lyr_typ=='btnrm':
                 lyr_spec = 'BatchNormalization'
             elif lyr_typ=='wsuml':
-                nxt_lyr  = WeightedSumLayer
+                nxt_lyr  = eval('WeightedSumLayer')
                 multi_input_lyr = True
             elif lyr_typ=='pslyr': # lyr_spec is 'PixelShuffle'/'DePixelShuffle'
                 lyr_spec = config[lyr_typ+'_sub'][cat_ix]
