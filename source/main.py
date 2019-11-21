@@ -6,6 +6,13 @@ for i in ls:
     exec('import {0}'.format(i))
     #exec('print("imported {0}")'.format(i))
 
+
+os.environ['KERAS_BACKEND'] = 'tensorflow'
+
+import warnings
+warnings.filterwarnings("ignore")
+
+
 # Importing Standard Data Science & Deep Learning Libraries
 ls = ['numpy','scipy','tensorflow','h5py','keras','sklearn','cv2','skimage']
 for i in ls:
@@ -13,6 +20,8 @@ for i in ls:
     exec('print("Version of {0}",{0}.__version__)'.format(i))
 
 import keras, tensorflow as tf
+# tf.get_logger().setLevel('ERROR')
+
 # Keras models, sequential & much general functional API
 from keras.models import Sequential, Model
 # Core layers
@@ -22,11 +31,11 @@ from keras.layers import Input, Reshape, Lambda, SpatialDropout2D
 from keras.layers import Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose
 from keras.layers import UpSampling2D, ZeroPadding2D
 # Pooling Layers
-from keras.layers import MaxPooling2D, AveragePooling2D
+from keras.layers import MaxPooling2D, AveragePooling2D, GlobalAveragePooling2D
 # Merge Layers
 from keras.layers import Add, Subtract, Multiply, Average, Maximum, Minimum, Concatenate
 # Advanced Activation Layers
-advanced_activations = ('LeakyReLU','PReLU','ELU')
+advanced_activations = ('ReLU','LeakyReLU','PReLU','ELU')
 for i in advanced_activations:
     exec('from keras.layers import {}'.format(i))
 # Normalization Layers
@@ -53,9 +62,6 @@ from matplotlib.ticker import StrMethodFormatter
 from IPython.display import display
 from numba import cuda
 
-import warnings
-warnings.filterwarnings("ignore")
-
 ######## STANDARD & THIRD PARTY LIBRARIES IMPORTS ENDS ########
 
 
@@ -64,6 +70,7 @@ warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 
 # Bool Type Arguments
+parser.add_argument("--run_main"           , type=eval , dest='run_main'           , default=False)
 parser.add_argument("--train"              , type=eval , dest='train_flag'         , default=True)
 parser.add_argument("--test"               , type=eval , dest='test_flag'          , default=True)
 parser.add_argument("--prev_model"         , type=eval , dest='prev_model'         , default=False)
@@ -72,62 +79,71 @@ parser.add_argument("--data_augmentation"  , type=eval , dest='data_augmentation
 parser.add_argument("--imwrite"            , type=eval , dest='imwrite'            , default=False)
 parser.add_argument("--read_as_gray"       , type=eval , dest='read_as_gray'       , default=False)
 parser.add_argument("--gclip"              , type=eval , dest='gclip'              , default=False)
+parser.add_argument("--epoch_lr_reduction" , type=eval , dest='epoch_lr_reduction' , default=False)
+
 # Int Type Arguments
-parser.add_argument("--scale"              , type=eval , dest='scale'              , default=4)
-parser.add_argument("--patch_size"         , type=eval , dest='patch_size'         , default=96)
-parser.add_argument("--patches_limit"      , type=eval , dest='patches_limit'      , default=None)
-parser.add_argument("--patch_approach"     , type=eval , dest='patch_approach'     , default=2)
-parser.add_argument("--min_LR"             , type=eval , dest='min_LR'             , default=0)
-parser.add_argument("--max_LR"             , type=eval , dest='max_LR'             , default=1)
-parser.add_argument("--min_HR"             , type=eval , dest='min_HR'             , default=-1)
-parser.add_argument("--max_HR"             , type=eval , dest='max_HR'             , default=1)
-parser.add_argument("--bit_depth"          , type=eval , dest='bit_depth'          , default=8)
-parser.add_argument("--outer_epochs"       , type=eval , dest='outer_epochs'       , default=3)
-parser.add_argument("--inner_epochs"       , type=eval , dest='inner_epochs'       , default=1)
-parser.add_argument("--disk_batch"         , type=eval , dest='disk_batch'         , default=20)
-parser.add_argument("--memory_batch"       , type=eval , dest='memory_batch'       , default=32)
-parser.add_argument("--disk_batches_limit" , type=eval , dest='disk_batches_limit' , default=None)
-parser.add_argument("--valid_images_limit" , type=eval , dest='valid_images_limit' , default=None)
-parser.add_argument("--test_images_limit"  , type=eval , dest='test_images_limit'  , default=None)
-parser.add_argument("--seed"               , type=eval , dest='np_seed'            , default=None)
-parser.add_argument("--SUP"                , type=eval , dest='SUP'                , default=5)
-parser.add_argument("--fSUP"               , type=eval , dest='fSUP'               , default=None)
-parser.add_argument("--alpha"              , type=eval , dest='alpha'              , default=1)     # MS-SSIM specific
-parser.add_argument("--beta"               , type=eval , dest='beta'               , default=1)     # MS-SSIM specific
-parser.add_argument("--B"                  , type=eval , dest='B'                  , default=16)    # B blocks in Generator
-parser.add_argument("--U"                  , type=eval , dest='U'                  , default=3)     # Recursive block's Units
+parser.add_argument("--scale"               , type=eval , dest='scale'               , default=4)
+parser.add_argument("--patch_size"          , type=eval , dest='patch_size'          , default=96)
+parser.add_argument("--patches_limit"       , type=eval , dest='patches_limit'       , default=None)
+parser.add_argument("--patch_approach"      , type=eval , dest='patch_approach'      , default=1)
+parser.add_argument("--min_LR"              , type=eval , dest='min_LR'              , default=0)
+parser.add_argument("--max_LR"              , type=eval , dest='max_LR'              , default=1)
+parser.add_argument("--min_HR"              , type=eval , dest='min_HR'              , default=-1)
+parser.add_argument("--max_HR"              , type=eval , dest='max_HR'              , default=1)
+parser.add_argument("--bit_depth"           , type=eval , dest='bit_depth'           , default=8)
+parser.add_argument("--outer_epochs"        , type=eval , dest='outer_epochs'        , default=3)
+parser.add_argument("--inner_epochs"        , type=eval , dest='inner_epochs'        , default=1)
+parser.add_argument("--disk_batch"          , type=eval , dest='disk_batch'          , default=20)
+parser.add_argument("--memory_batch"        , type=eval , dest='memory_batch'        , default=32)
+parser.add_argument("--disk_batches_limit"  , type=eval , dest='disk_batches_limit'  , default=None)
+parser.add_argument("--valid_images_limit"  , type=eval , dest='valid_images_limit'  , default=None)
+parser.add_argument("--epoch_lr_red_epochs" , type=eval , dest='epoch_lr_red_epochs' , default=None)
+parser.add_argument("--test_images_limit"   , type=eval , dest='test_images_limit'   , default=None)
+parser.add_argument("--seed"                , type=eval , dest='np_seed'             , default=None)
+parser.add_argument("--SUP"                 , type=eval , dest='SUP'                 , default=5)
+parser.add_argument("--fSUP"                , type=eval , dest='fSUP'                , default=None)
+parser.add_argument("--alpha"               , type=eval , dest='alpha'               , default=1)     # MS-SSIM specific
+parser.add_argument("--beta"                , type=eval , dest='beta'                , default=1)     # MS-SSIM specific
+parser.add_argument("--B"                   , type=eval , dest='B'                   , default=16)    # B blocks in Generator
+parser.add_argument("--U"                   , type=eval , dest='U'                   , default=3)     # Recursive block's Units
 # Float Type Arguments
-parser.add_argument("--lr"                 , type=eval , dest='lr'                 , default=0.001) # Initial learning rate
-parser.add_argument("--flr"                , type=eval , dest='flr'                , default=None)  # Final   learning rate
-parser.add_argument("--decay"              , type=eval , dest='decay'              , default=0.0)   # Exponential Decay
-parser.add_argument("--momentum"           , type=eval , dest='momentum'           , default=0.9)   # Momentum in case of SGD
-parser.add_argument("--overlap"            , type=eval , dest='overlap'            , default=0.0)   # Explicit fraction of Overlap
-parser.add_argument("--a"                  , type=eval , dest='a'                  , default=0.5)   # convexity b/w MS-SSIM & GL1
-parser.add_argument("--fa"                 , type=eval , dest='fa'                 , default=None)  # convexity b/w MS-SSIM & GL1
-parser.add_argument("--k1"                 , type=eval , dest='k1'                 , default=None)
-parser.add_argument("--k2"                 , type=eval , dest='k2'                 , default=None)
-parser.add_argument("--C1"                 , type=eval , dest='C1'                 , default=1)     # SSIM specific
-parser.add_argument("--C2"                 , type=eval , dest='C2'                 , default=1)     # SSIM specific
-parser.add_argument("--gnclip"             , type=eval , dest='gnclip'             , default=None)
-parser.add_argument("--gvclip"             , type=eval , dest='gvclip'             , default=None)
-parser.add_argument("--b"                  , type=eval , dest='b'                  , default=0.5)  # convexity b/w weighted & last
-parser.add_argument("--fb"                 , type=eval , dest='fb'                 , default=None) # convexity b/w weighted & last
+parser.add_argument("--lr"                  , type=eval , dest='lr'                  , default=0.001) # Initial learning rate
+parser.add_argument("--flr"                 , type=eval , dest='flr'                 , default=None)  # Final   learning rate
+parser.add_argument("--decay"               , type=eval , dest='decay'               , default=0.0)   # Exponential Decay
+parser.add_argument("--momentum"            , type=eval , dest='momentum'            , default=0.9)   # Momentum in case of SGD
+parser.add_argument("--epoch_lr_red_factor" , type=eval , dest='epoch_lr_red_factor' , default=0.9)   # Recuction in LR on certain steps
+parser.add_argument("--residual_scale"      , type=eval , dest='residual_scale'      , default=1)   # Recuction in LR on certain steps
+parser.add_argument("--overlap"             , type=eval , dest='overlap'             , default=0.0)   # Explicit fraction of Overlap
+parser.add_argument("--a"                   , type=eval , dest='a'                   , default=0.5)   # convexity b/w MS-SSIM & GL1
+parser.add_argument("--fa"                  , type=eval , dest='fa'                  , default=None)  # convexity b/w MS-SSIM & GL1
+parser.add_argument("--k1"                  , type=eval , dest='k1'                  , default=None)
+parser.add_argument("--k2"                  , type=eval , dest='k2'                  , default=None)
+parser.add_argument("--C1"                  , type=eval , dest='C1'                  , default=1)     # SSIM specific
+parser.add_argument("--C2"                  , type=eval , dest='C2'                  , default=1)     # SSIM specific
+parser.add_argument("--gnclip"              , type=eval , dest='gnclip'              , default=None)
+parser.add_argument("--gvclip"              , type=eval , dest='gvclip'              , default=None)
+parser.add_argument("--b"                   , type=eval , dest='b'                   , default=0.5)  # convexity b/w weighted & last
+parser.add_argument("--fb"                  , type=eval , dest='fb'                  , default=None) # convexity b/w weighted & last
 # String Type Arguments
-parser.add_argument("--gen_choice"         , type=str , dest='gen_choice'          , default='baseline_gen')
-parser.add_argument("--dis_choice"         , type=str , dest='dis_choice'          , default='baseline_dis')
-parser.add_argument("--con_choice"         , type=str , dest='con_choice'          , default='baseline_con')
-parser.add_argument("--attention"          , type=str , dest='attention'           , default='sigmoid')
-parser.add_argument("--precision"          , type=str , dest='float_precision'     , default='float32')
-parser.add_argument("--optimizer1"         , type=str , dest='optimizer1'          , default='Adam')
-parser.add_argument("--optimizer2"         , type=str , dest='optimizer2'          , default='Adam')
-parser.add_argument("--name"               , type=str , dest='data_name'           , default='sample')
-parser.add_argument("--train_strategy"     , type=str , dest='train_strategy'      , default='cnn') # other is 'gan'
-parser.add_argument("--high_path"          , type=str , dest='high_path'           , default=os.path.join('.','..','data','HR'))
-parser.add_argument("--low_path"           , type=str , dest='low_path'            , default=os.path.join('.','..','data','LR'))
-parser.add_argument("--gen_path"           , type=str , dest='gen_path'            , default=os.path.join('.','..','data','SR'))
-parser.add_argument("--save_dir"           , type=str , dest='save_dir'            , default=os.path.join('.','..','experiments','saved_models'))
-parser.add_argument("--plots"              , type=str , dest='plots'               , default=os.path.join('.','..','experiments','training_plots'))
-# parser.add_argument("--loss"             , type=str , dest='loss'                , default='MSE')
+parser.add_argument("--gen_choice"             , type=str  , dest='gen_choice'             , default='baseline_gen')
+parser.add_argument("--dis_choice"             , type=str  , dest='dis_choice'             , default='baseline_dis')
+parser.add_argument("--con_choice"             , type=str  , dest='con_choice'             , default='baseline_con')
+parser.add_argument("--gen_loss"               , type=str  , dest='gen_loss'               , default=None)
+parser.add_argument("--dis_loss"               , type=str  , dest='dis_loss'               , default=None)
+parser.add_argument("--adv_loss"               , type=str  , dest='adv_loss'               , default=None)
+parser.add_argument("--attention"              , type=str  , dest='attention'              , default='sigmoid')
+parser.add_argument("--test_phase"             , type=str  , dest='test_phase'             , default='test')
+parser.add_argument("--precision"              , type=str  , dest='float_precision'        , default='float32')
+parser.add_argument("--optimizer1"             , type=str  , dest='optimizer1'             , default='Adam')
+parser.add_argument("--optimizer2"             , type=str  , dest='optimizer2'             , default='Adam')
+parser.add_argument("--name"                   , type=str  , dest='data_name'              , default='sample')
+parser.add_argument("--train_strategy"         , type=str  , dest='train_strategy'         , default='cnn') # other is 'gan'
+parser.add_argument("--high_path"              , type=str  , dest='high_path'              , default=os.path.join('.','..','data','HR'))
+parser.add_argument("--low_path"               , type=str  , dest='low_path'               , default=os.path.join('.','..','data','LR'))
+parser.add_argument("--gen_path"               , type=str  , dest='gen_path'               , default=os.path.join('.','..','data','SR'))
+parser.add_argument("--save_dir"               , type=str  , dest='save_dir'               , default=os.path.join('.','..','experiments','saved_models'))
+parser.add_argument("--plots"                  , type=str  , dest='plots'                  , default=os.path.join('.','..','experiments','training_plots'))
+parser.add_argument("--input_interpolation"    , type=str  , dest='input_interpolation'    , default=None)
 parser.add_argument("--resize_interpolation"   , type=str  , dest='resize_interpolation'   , default='BICUBIC')
 parser.add_argument("--upsample_interpolation" , type=str  , dest='upsample_interpolation' , default='bilinear')
 # Tuple Type Arguments
@@ -192,6 +208,8 @@ def check_and_gen(name,low_path,high_path):
 def on_fly_crop(mat,patch_size=patch_size,typ='HR',overlap=overlap):
     "Crop images into patches, with explicit overlap, and limit of random patches if exist"
     ls = []
+    # if input_interpolation:
+    #     patch_size *= scale
     nparts1, nparts2 = int(np.ceil(mat.shape[0]/patch_size)) , int(np.ceil(mat.shape[1]/patch_size))
     step1, step2     = (mat.shape[0]-patch_size)/(nparts1-1) , (mat.shape[1]-patch_size)/(nparts2-1)
     if typ=='HR':
@@ -228,8 +246,11 @@ def feed_data(name,low_path,high_path,lw_ix,up_ix,patching=True,phase='train',er
         patch_ls, random_ix_ls = None, None
         for x,scl in zip(('HR','LR'),(scale,1)):
             if (not patching) or (patch_approach==1):
-                image = image.resize( ((image.width//scale)*scl,(image.height//scale)*scl) ,
+                image = image.resize( ((image.width//scale)*scl, (image.height//scale)*scl) ,
                     resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                if (patch_approach==1) and (input_interpolation is not None):
+                    image = image.resize( (image.width*scale, image.height*scale) ,
+                        resample = eval('PIL.Image.{}'.format(input_interpolation)) )
             if not ( patching and x=='LR' and patch_approach==2 ):
                 img_mat = img_to_array( image , dtype='uint{}'.format(bit_depth))
             if not patching:
@@ -245,7 +266,7 @@ def feed_data(name,low_path,high_path,lw_ix,up_ix,patching=True,phase='train',er
                     datasets[x][name][phase].extend(patch_ls)
                 else: # There are 2 approaches for generating LR patches
                     if patch_approach == 1 :
-                        patch_ls = on_fly_crop( img_mat,patch_size//scale,x )
+                        patch_ls = on_fly_crop( img_mat,patch_size//(scale if (input_interpolation is None) else 1),x )
                         if patches_limit is not None:
                             patch_ls = patch_ls[random_ix_ls]
                         datasets[x][name][phase].extend(patch_ls)
@@ -254,6 +275,9 @@ def feed_data(name,low_path,high_path,lw_ix,up_ix,patching=True,phase='train',er
                             patch_image = Image.fromarray(mat)
                             patch_image = image.resize( ((patch_image.width//scale),(patch_image.height//scale)) ,
                                 resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                            if input_interpolation is not None:
+                                patch_image = image.resize( ((patch_image.width*scale),(patch_image.height*scale)) ,
+                                    resample = eval('PIL.Image.{}'.format(input_interpolation)) )
                             mat = img_to_array( patch_image , dtype='uint{}'.format(bit_depth))
                             datasets[x][name][phase].append(mat)
     for x in ('LR','HR'):
@@ -306,7 +330,7 @@ def show_patches(name,ix=0,images_limit=5,patches_limit = 20,patch_approach=1):
 
     x_test  = get_data(name,'test',indx=['LR','HR'],org=False)
     x_test  = {    'lr_input': x_test[0] ,    'hr_input': x_test[1]    }
-    init_PSNR = get_IPSNR(x_test['hr_input'],x_test['lr_input'],pred_mode='LR')
+    init_PSNR = get_PSNR(x_test['hr_input'],x_test['lr_input'],pred_mode='LR')
     x_test, y_test = x_test['lr_input'], x_test['hr_input']
 
     ls = np.arange(len(x_test))
@@ -335,9 +359,9 @@ def PSNR(y_true, y_pred, typ='HR'):
 def npPSNR(y_true, y_pred):
     return (10.0 * np.log((((1<<bit_depth)-1) ** 2) / (np.mean(np.square(y_pred - y_true))))) / np.log(10.0)
 
-def get_IPSNR(true_tensor,pred_tensor,pred_mode='HR'):
+def get_PSNR(true_tensor,pred_tensor,pred_mode='HR'):
     "return average PSNR between two tensors containing Images"
-    avg_PSNR = [0,0]
+    avg_val = [0,0]
     if (pred_mode=='HR') or (pred_mode=='LR' and bit_depth==8):
         for i in range(len(true_tensor)):
             true_img = backconvert(true_tensor[i] , typ='HR' )
@@ -346,14 +370,21 @@ def get_IPSNR(true_tensor,pred_tensor,pred_mode='HR'):
             if pred_mode=='LR':
                 pred_img = pred_img.astype('uint8')
                 pred_img = Image.fromarray(pred_img)
-                pred_img = pred_img.resize( ((pred_img.width*scale),(pred_img.height*scale)) ,
-                    resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
+                if input_interpolation is None:
+                    pred_img = pred_img.resize( ((pred_img.width*scale),(pred_img.height*scale)) ,
+                        resample = eval('PIL.Image.{}'.format(resize_interpolation)) )
                 pred_img = img_to_array(pred_img)
-            val = npPSNR(true_img,pred_img)
-            if val!=float('inf'):
-                avg_PSNR[0] += val
-                avg_PSNR[1] += 1
-    return (avg_PSNR[0]/(avg_PSNR[1]) if avg_PSNR[1] else avg_PSNR[0])
+    #         val = npPSNR(true_img,pred_img)
+    #         if val!=float('inf'):
+    #             avg_val[0] += val
+    #             avg_val[1] += 1
+    # return (avg_val[0]/(avg_val[1]) if avg_val[1] else avg_val[0])
+
+            val = np.mean( np.square(true_img-pred_img) )
+            avg_val[0] += val
+            avg_val[1] += 1
+    return (10.0 * np.log((((1<<bit_depth)-1) ** 2) / (avg_val[0]/avg_val[1]))) / np.log(10.0)
+
 
 ######## METRIC DEFINITIONS ENDS ########
 
@@ -416,8 +447,8 @@ def ADV_LOSS(y_true, y_pred):
 keras_update_dict = {}
 for loss in ('MIX_LOSS','ZERO_LOSS','DIS_LOSS','ADV_LOSS',):
     keras_update_dict[loss] = eval(loss)
-for layer in ('WeightedSumLayer','PixelShuffle','DePixelShuffle'):
-    keras_update_dict[layer] = eval(layer)
+# for layer in ('WeightedSumLayer','PixelShuffle','DePixelShuffle'):
+#     keras_update_dict[layer] = eval(layer)
 keras_update_dict['PSNR'] = eval('PSNR')
 
 get_custom_objects().update(keras_update_dict)
@@ -504,11 +535,17 @@ def my_gan(*shapes):
     global generator_model, discriminator_model, content_model
     if len(shapes)==1:  shapes = shapes+shapes
     if len(shapes)==2:  shapes = shapes+(len(channel_indx),)
-    generator_model     = dict_to_model_parse( configs_dict[gen_choice],(shapes[0]//scale , shapes[1]//scale , shapes[2]) )
+    if input_interpolation is None:
+        generator_model     = dict_to_model_parse( configs_dict[gen_choice],(shapes[0]//scale , shapes[1]//scale , shapes[2]) )
+    else:
+        generator_model     = dict_to_model_parse( configs_dict[gen_choice],(shapes[0]        , shapes[1]        , shapes[2]) )
     discriminator_model = dict_to_model_parse( configs_dict[dis_choice],(shapes[0]        , shapes[1]        , shapes[2]) )
     content_model       = dict_to_model_parse( configs_dict[con_choice],(shapes[0]        , shapes[1]        , shapes[2]) )
     generator_model.name = 'generator'
-    X_lr   = Input((shapes[0]//scale , shapes[1]//scale , shapes[2]),name='lr_input')
+    if input_interpolation is None:
+        X_lr = Input((shapes[0]//scale , shapes[1]//scale , shapes[2]),name='lr_input')
+    else:
+        X_lr = Input((shapes[0]      , shapes[1]        , shapes[2]),name='lr_input')
     X_hr   = Input((shapes[0]        , shapes[1]        , shapes[2]),name='hr_input')
     Y_sr   = generator_model(X_lr)
     # Actual is given 1, fake is given 0
@@ -539,14 +576,14 @@ def unfreeze_model(model,recursive=False):
 def compile_model(model,mode,opt):
     if mode in ('cnn','gen'):
         train_model , non_train_model = generator_model, discriminator_model
-        loss = { 'generator':'MAE' , 'discriminator':'ADV_LOSS' , 'content':'ZERO_LOSS' }
+        loss = { 'generator':('MAE' if (gen_loss is not None) else gen_loss) , 'discriminator':('ADV_LOSS' if (adv_loss is not None) else adv_loss) , 'content':'ZERO_LOSS' }
         if mode=='cnn': # Although this one is not used anymore
             loss_weights = { 'generator':1 , 'discriminator':0 , 'content':0 }
         elif mode=='gen':
             loss_weights = { 'generator':1e-2 , 'discriminator':5e-3 , 'content':(1/12.75)**2 }
     elif mode=='dis':
         non_train_model , train_model = generator_model, discriminator_model
-        loss = { 'generator':'MAE' , 'discriminator':'DIS_LOSS' , 'content':'ZERO_LOSS' }
+        loss = { 'generator':('MAE' if (gen_loss is not None) else gen_loss) , 'discriminator':('DIS_LOSS' if (dis_loss is not None) else dis_loss) , 'content':'ZERO_LOSS' }
         loss_weights = { 'generator':0 , 'discriminator':1 , 'content':0 }
     metrics = {'generator':'PSNR'}
     freeze_model(   content_model   )
@@ -585,7 +622,10 @@ def plot_history(history):
             pass
     for key in history.keys():
         if not key.startswith('val'):
-            _ = plt.plot(history[key]         , linewidth=1 , label=key )
+            with open(os.path.join(plot_dir,'{}.txt'.format(key)),'w') as wf:
+                wf.write( '='.join( map( str , ( key        , history[key]        )) )+'\n' )
+                wf.write( '='.join( map( str , ( 'val_'+key , history['val_'+key] )) )      )
+            _ = plt.plot( history[key]        , linewidth=1 , label=key )
             _ = plt.plot( history['val_'+key] , linewidth=1 , label='val_'+key )
             plt.xticks( np.round(np.linspace(0,len(history[key])-1,5),0) , np.round(np.linspace(1,len(history[key]),5),0) )
             plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.3g}')) # 2 decimal places
@@ -610,6 +650,7 @@ pass
 
 def train(name,train_strategy,dis_gen_ratio=(1,1)):
     ""
+    global x_valid, y_valid, x_train, y_train
     global generator_model, discriminator_model, content_model, gan_model
     global iSUP, ia, ib, gan_model, all_history, history
     iSUP, ia, ib = SUP, a, b
@@ -647,7 +688,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
     'discriminator':np.array([[0,1],]*len(x_valid['lr_input']),dtype=float_precision) ,
     'content'      :np.array([None]  *len(x_valid['lr_input']))
     }
-    val_init_PSNR = get_IPSNR(x_valid['hr_input'],x_valid['lr_input'],pred_mode='LR')
+    val_init_PSNR = get_PSNR(x_valid['hr_input'],x_valid['lr_input'],pred_mode='LR')
     if train_strategy=='cnn':
         x_valid, y_valid = x_valid['lr_input'], x_valid['hr_input']
     # Selecting optimizers for training
@@ -714,11 +755,13 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 gc.collect()
                 K.set_value(model.optimizer.lr    , lr+(i+epc*n_disk_batches)*lr_delta)
                 K.set_value(model.optimizer.decay , decay)
+                if epoch_lr_reduction and (not (i+epc*n_disk_batches)) and (not ((i+epc*n_disk_batches)%epoch_lr_red_epochs)):
+                    K.set_value(model.optimizer.lr    , K.eval(model.optimizer.lr)*epoch_lr_red_factor)
                 if gclip:
                     if gnclip is not None:
-                        model.optimizer.__dict__['clipnorm']  = gnclip / lr+(i+epc*n_disk_batches)*lr_delta
+                        model.optimizer.__dict__['clipnorm']  = gnclip / K.eval(model.optimizer.lr)
                     if gvclip is not None:
-                        model.optimizer.__dict__['clipvalue'] = gvclip / lr+(i+epc*n_disk_batches)*lr_delta
+                        model.optimizer.__dict__['clipvalue'] = gvclip / K.eval(model.optimizer.lr)
                 
                 print( 'Reading Disk Batch {}'.format(i+1) )
                 init_time = datetime.now()
@@ -735,7 +778,7 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
                 'discriminator':np.array([[0,1],]*len(x_train['lr_input']),dtype=float_precision) ,
                 'content'      :np.array([None]  *len(x_train['lr_input']))
                 }
-                train_init_PSNR = get_IPSNR(x_train['hr_input'],x_train['lr_input'],pred_mode='LR')
+                train_init_PSNR = get_PSNR(x_train['hr_input'],x_train['lr_input'],pred_mode='LR')
                 if train_strategy=='cnn':
                     x_train, y_train = x_train['lr_input'], x_train['hr_input']
                 if data_augmentation:
@@ -801,17 +844,17 @@ def train(name,train_strategy,dis_gen_ratio=(1,1)):
 
 ######## EVALUATING AND GENERATING MODEL OUTPUTS ON TEST BEGINS ########
 
-def test(name):
+def test(name,phase=test_phase):
     ""
- #   K.clear_session()
- #   if tf.test.is_gpu_available():
- #       cuda.select_device(0) ; cuda.close()
+    # K.clear_session()
+    # if tf.test.is_gpu_available():
+    #     cuda.select_device(0) ; cuda.close()
     file_names[name] = {}
-    file_names[name]['test'] = sorted(os.listdir(os.path.join(high_path,name,'test')))
+    file_names[name][phase] = sorted(os.listdir(os.path.join(high_path,name,phase)))
     # Working each image at a time for full generation
     disk_batch = 1 # Taking disk_batch to be 1 as heterogenous images
-    n_disk_batches = len(file_names[name]['test'][:test_images_limit])
-    test_csv = open(os.path.join('.','..','experiments','{} {} {}.csv'.format(name,train_strategy,gan_model.name)),'w')
+    n_disk_batches = len(file_names[name][phase][:test_images_limit])
+    test_csv = open(os.path.join('.','..','experiments','{} {} {} {}.csv'.format(name,phase,train_strategy,gan_model.name)),'w')
     print( 'index,img_name,initial_psnr,final_psnr,psnr_gain' , file=test_csv )
     test_csv.close()
     psnr_sum = {}
@@ -825,7 +868,7 @@ def test(name):
         print('Model to Load for testing not found')
     print('Time to Load Weights',datetime.now()-init) # profiling
     if imwrite:
-        gen_store = os.path.join(gen_path+train_strategy,name)
+        gen_store = os.path.join(gen_path+train_strategy,gan_model.name,name,phase)
         if os.path.isdir(gen_store):
             shutil.rmtree(gen_store)
         if not os.path.isdir(gen_store):
@@ -834,17 +877,17 @@ def test(name):
     for i in range(n_disk_batches):
         gc.collect()
         init_time = datetime.now()
-        feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=False,phase='test',erase=True,patch_approach=patch_approach)
-        print('Time to read image {}\n{} is {}'.format(file_names[name]['test'][i],i+1,datetime.now()-init_time))
+        feed_data(name,low_path,high_path,i*disk_batch,(i+1)*disk_batch,patching=False,phase=phase,erase=True,patch_approach=patch_approach)
+        print('Time to read image {}\n{} is {}'.format(file_names[name][phase][i],i+1,datetime.now()-init_time))
         init = datetime.now()        
-        x_test, y_test = get_data(name,'test',indx=['LR','HR'],org=False)
+        x_test, y_test = get_data(name,phase,indx=['LR','HR'],org=False)
         print( 'Time to Scale Image',datetime.now()-init ) # profiling
 
         y_pred = new_generator_model.predict(x_test,verbose=1,batch_size=1)
 
         init = datetime.now()
-        psnr_i =  get_IPSNR(np.array(y_test) , np.array(x_test) , pred_mode='LR')
-        psnr_f =  get_IPSNR(np.array(y_test) , np.array(y_pred) , pred_mode='HR')
+        psnr_i =  get_PSNR(np.array(y_test) , np.array(x_test) , pred_mode='LR')
+        psnr_f =  get_PSNR(np.array(y_test) , np.array(y_pred) , pred_mode='HR')
         psnr_g = psnr_f - psnr_i
         psnr_sum['initial'] = psnr_i if ('initial' not in psnr_sum) else (psnr_sum['initial']+psnr_i)
         psnr_sum['final'  ] = psnr_f if ('final'   not in psnr_sum) else (psnr_sum['final'  ]+psnr_f)
@@ -852,17 +895,17 @@ def test(name):
         print('Time to Find and Store PSNRs',datetime.now()-init) # profiling
         print('Initial PSNR = {}, Final PSNR = {}, Gained PSNR = {}'.format(psnr_i,psnr_f,psnr_g))
         init = datetime.now()
-        test_csv = open(os.path.join('.','..','experiments','{} {} {}.csv'.format(name,train_strategy,gan_model.name)),'a')
-        print( '{},{},{},{},{}'.format(i+1,file_names[name]['test'][i],psnr_i,psnr_f,psnr_g) , file=test_csv )
+        test_csv = open(os.path.join('.','..','experiments','{} {} {} {}.csv'.format(name,phase,train_strategy,gan_model.name)),'a')
+        print( '{},{},{},{},{}'.format(i+1,file_names[name][phase][i],psnr_i,psnr_f,psnr_g) , file=test_csv )
         test_csv.close()
         print('Time to Update CSV file',datetime.now()-init) # profiling
         if imwrite and bit_depth==8:
             init = datetime.now()
             img_mat = backconvert(y_pred[0],typ='HR').astype('uint8')
             img = Image.fromarray( img_mat )
-            img.save( os.path.join(gen_store,'{}'.format(file_names[name]['test'][i])) )
+            img.save( os.path.join(gen_store,'{}'.format(file_names[name][phase][i])) )
             print('Time to Write Image',datetime.now()-init) # profiling
-        del x_test, y_test, y_pred, datasets['LR'][name]['test'], datasets['HR'][name]['test']
+        del x_test, y_test, y_pred, datasets['LR'][name][phase], datasets['HR'][name][phase]
     # Finding average scored of learned model
     print('\nTest Statistics')
     for key in psnr_sum:
@@ -873,23 +916,92 @@ def test(name):
 
 
 
-if __name__ == '__main__':
+
+
+
+if (__name__ == '__main__') and run_main:
+    # Bool Type Arguments
+    imwrite = True
+    train_flag, test_flag = True, False
+    prev_model, change_optimizer, data_augmentation = False, False, False
+    # Int Type Arguments
+    patches_limit = None
+    patch_approach = 1
+    min_LR, max_LR = 0,1
+    min_HR, max_HR = -1,1
+    outer_epochs, inner_epochs = 10, 3
+    disk_batch, memory_batch   = 10, 8
+    disk_batches_limit, valid_images_limit, test_images_limit = 5, 15, 10
+    # Float Type Arguments
+    overlap = 0.0
+    lr, flr, decay, momentum = 100e-5, 10e-5, 0.0, 0.8
+    # String Type Arguments
+    optimizer1 = 'Adam'
+    train_strategy = 'cnn'
+    data_name = 'DIV2K'
     # Building GAN model based on choices for both Training & Testing phase
     gan_model = my_gan( patch_size )
     datasets = {}
     if train_flag:
-        # 
-        # train(data_name,'gan',(1,1))
+        train(data_name,train_strategy,(1,1))
     if test_flag:
-        # test(data_name)
+        test(data_name)
+
+else:
+    gan_model = my_gan( patch_size )
+    datasets = {}
+
+    if train_flag:
+        train(data_name,train_strategy,(1,1))
+    if test_flag:
+        test(data_name)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ######## UNUSED CODE SECTION BEGINS ########
 
-"Below Code has Variable to Run in Google Colab"
-'''
-SRResNet TRAINING FOR GOOGLE COLAB
 
+'''
+"Below Code has Variable to Run in Google Colab"
+B = 16
+initiate(globals())
+patch_size = 128
+gen_choice, dis_choice, con_choice = 'baseline_gen', 'baseline_dis', 'baseline_con'
+gan_model = my_gan( patch_size )
+'''
+
+
+'''
+"Code for De-bugging purpose of GAN generation for varying scale"
+print('Generator     I/O Shapes')
+print( generator_model.layers[ 0].input_shape  )
+print( generator_model.layers[-1].output_shape )
+print('Discriminator I/O Shapes')
+print( discriminator_model.layers[ 0].input_shape  )
+print( discriminator_model.layers[-1].output_shape )
+print('Content       I/O Shapes')
+print( content_model.layers[ 0].input_shape  )
+print( content_model.layers[-1].output_shape )
+'''
+
+
+'''
+"SRResNet TRAINING FOR GOOGLE COLAB"
 # Bool Type Arguments
 imwrite = True
 train_flag, test_flag = True, True
@@ -910,11 +1022,16 @@ optimizer1 = 'Adam'
 train_strategy = 'cnn'
 data_name = 'DIV2K'
 
+datasets = {}
+if train_flag:
+    train(data_name,train_strategy,(1,1))
+if test_flag:    
+    test(data_name)
+'''
 
 
-
-SRGAN TRAINING FOR GOOGLE COLAB
-
+'''
+"SRGAN TRAINING FOR GOOGLE COLAB"
 # Bool Type Arguments
 imwrite = True
 train_flag, test_flag = True, True
@@ -935,7 +1052,14 @@ optimizer1 = 'Adam'
 optimizer2 = 'Adam'
 train_strategy = 'gan'
 data_name = 'DIV2K'
+
+datasets = {}
+if train_flag:
+    train(data_name,train_strategy,(1,1))
+if test_flag:    
+    test(data_name)
 '''
+
 
 
 

@@ -1,4 +1,73 @@
-SRGAN - 2017
+Avg PSNR, or Avg MSE then PSNR??, use it for correcting IPSNR
+
+dream119
+
+D Awadhesh Tanwar, Alpha Centauri Password
+@wAdh3sh
+
+source /home/dreamlab/awadhesh/environments/DSL/bin/activate
+
+virtualenv -p /usr/bin/python3  /home/dreamlab/awadhesh/environments/ENV_NAME
+
+
+#### ERROR LOG IN EITHER CODE ####
+
+Line No. 859 causing error, during weights loading
+
+new_generator_model.load_weights(os.path.join(save_dir,gen_choice))
+
+Below is the error
+
+tensorflow.python.framework.errors_impl.FailedPreconditionError: Failed to memcopy into scratch buffer for device 0
+         [[{{node _SOURCE}} = NoOp[]()]]
+
+#### ERROR LOG IN EITHER CODE ####
+
+
+#### Models to test ####
+VDSR, SRResNet, SRResNet(wBN), DRRN, EDSR, OAM (compared with DRRN), DRCN, E-SRGAN
+
+
+#### VDSR - 2016 ####
+(Multi-Scale Data during training is introduced)
+IP is interpolated LR image, MSE as error
+SGD with momentum 0.9, L2 Regularization with 0.0001 scale
+Input_patch size is equal to receptive field size
+memory_batch_size = 64, initial learning rate of [0.01,0.001]
+(2*(B+1)+1)x(2*(B+1)+1) == 41 is receptive field, and also then "patch size"
+64x(3x3) Convolutions in each layer, 
+B = 19 used, last layer has 3 outputs only
+Initial learning rate was 0.1, reduced by factor of 10 every 20 epochs,
+total 80 epochs( 9960 iterations done), 125 minibatches per epochs
+
+(9960/80)*64*(2*20+1)*(2*20+1) = 13394208 pixels per epoch
+(Above needs to be maintained for traning time comparison if epochs are being used )
+
+Note: Gradient (Norm) Clipping parameter Theta (θ) is still unknown (ALSO THAT IS NOT WORKING TILL NOW)
+--gclip=True --gnclip=θ
+
+Code Implementation Required
+1.[X] (VDSR) Loss pick from command line
+2.[X] (VDSR) Interpolated Input option for feed_data
+3.[ ] (VDSR) Mutli-Scale during training in same input
+
+Even using ADAM in above, this much deep network, very small patch size, & doesn't makes learning quick
+
+
+#### OAM - 2019 ####
+B=16 
+
+# for single image, No batch_size is in consideration, 4 is number of channnels
+((B.reshape((1,1,4))).T*A.T).T
+# for batch_size, here 2 is batch_size
+((B.reshape((2,1,1,4))).T*A.T).T
+
+
+
+
+
+
+#### SRGAN - 2017 ####
 Training on 350k ImageNet images
 Testing  on Set5, Set14, BSD100, BSD300
 Each mini batch has 16 Random patches of 96x96 HR patches from each trainig image
@@ -16,7 +85,7 @@ Phi(i,j) is not defined properly in this paper
 
 
 
-E-SRGAN
+#### E-SRGAN ####
 Training on DIV2K, Flickr2K and OutdoorSceneTraining (DIV2F, which merged of starting two)
 Testing on Set5, Set14, BSD100, PIRM self-validation set
 

@@ -50,16 +50,18 @@ Enhancing low resolution images by applying deep network to produce high resolut
 - [x] Plotting functions for Training progress
 - [x] Saving & Training resuming tricks for composite models
 - [x] MIX loss function with its Adaptive variant
-- [ ] Data augmentation Class for MUlti I/O keras models
-- [ ] Hybrid Padding for Testing on very large images
-- [ ] Attention Mechanism in GAN
-- [ ] Bicubic UpSampling layer
+- [x] Attention Mechanism in GAN
+- [ ] Data augmentation Class for Multi I/O keras models
+- [ ] Multi-Scale Networks
 - [ ] Network Interpolation
+- [ ] Hybrid Padding for Testing on very large images
+- [ ] Bicubic UpSampling layer
+
            
 ## Learning
 - Residual learning helps a lot in training of deep neural networks
 - Perceptual loss can be useful for domains like Image Style Transfer and Photo Realistic Style Transfer also.
-- Data sollection is an import aspect, using images with high quality data, quality above quantity, as we have augmentation.
+- Data collection is an import aspect, using images with high quality data, quality above quantity, as we have augmentation.
 
 
 ## Results

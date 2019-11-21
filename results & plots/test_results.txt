@@ -1,0 +1,64 @@
+dict = {
+'Dataset':['CLIC_mobile valid', 'CLIC_professional valid', 'DIV2K valid', 'BSDS100 test', 'Manga109 test', 'PIRM valid', 'PIRM test', 'Set5 test', 'Set14 test', 'Urban100 test'],
+
+'DIV2K':[1.4349867563144365, 1.644730532395146, 1.5478410929480098, 1.7311608094719355, 4.007716754742146, 1.4005924116766477, 1.3667924697634577, 1.789008613663255, 2.7681519378697885, 1.9954565177347345],
+
+'Flickr2K':[1.2795401763258933, 0.8830823014107683, 1.1116193846376121, 1.3858784987672155, 3.7511378679064453, 1.272256236287324, 1.2428421631607802, 1.654043060723483, 2.326903127904805, 1.8554988222500177],
+
+'CLIC_professional':[1.3407940407654468, 1.4863899076464488, 1.2684805069599427, 1.4422692718465027, 3.3860161870181433, 1.2462600351525077, 1.1940290999575587, 1.5711379079664398, 2.4476512415640364, 1.7777780337865519],
+
+'CLIC_mobile':[1.1583727049086325, 1.2033712077600731, 1.118650918301489, 1.3153691888818946, 3.034126577528124, 1.084354065216937, 1.016317295461867, 1.375574736059294, 1.980649908363425, 1.570362720014697],
+}
+
+
+DIV2K
+DataSet Name                                                           Minimum  Maximum  Mean     Median   Standard Deviation
+BSDS100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv               0.1568   5.5852   1.4350   1.2476   0.9953
+CLIC_mobile valid cnn PS_SRResNet, trivial_dis, trivial_con.csv          0.0008   4.0546   1.6447   1.4074   0.8135
+CLIC_professional valid cnn PS_SRResNet, trivial_dis, trivial_con.csv    0.4028   4.1061   1.5478   1.1772   0.9838
+DIV2K valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                0.5198   5.0900   1.7312   1.4756   1.0164
+Manga109 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              1.4683   6.8428   4.0077   3.9811   1.1490
+PIRM test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.4287   3.9063   1.4006   1.2399   0.7405
+PIRM valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.2879   4.8736   1.3668   1.1804   0.7359
+Set14 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.4560   4.2000   1.7890   1.6165   1.1100
+Set5 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.7885   4.8362   2.7682   3.3323   1.6106
+Urban100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              0.1150   7.7068   1.9955   1.5774   1.3285
+
+Flickr2K
+DataSet Name                                                           Minimum  Maximum  Mean     Median   Standard Deviation
+BSDS100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              -0.0604   5.0948   1.2795   1.1641   0.8485
+CLIC_mobile valid cnn PS_SRResNet, trivial_dis, trivial_con.csv         -5.0571   3.3643   0.8831   1.0452   1.4052
+CLIC_professional valid cnn PS_SRResNet, trivial_dis, trivial_con.csv   -0.9128   4.2062   1.1116   0.8561   1.0082
+DIV2K valid cnn PS_SRResNet, trivial_dis, trivial_con.csv               -0.8642   5.1718   1.3859   1.2540   0.9237
+Manga109 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              0.9881   6.1865   3.7511   3.6272   1.0886
+PIRM test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.3017   3.4798   1.2723   1.1522   0.6713
+PIRM valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.1755   4.7962   1.2428   1.0787   0.6853
+Set14 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.4014   3.5862   1.6540   1.4223   1.0761
+Set5 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.5639   4.1585   2.3269   2.7226   1.4741
+Urban100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              0.4248   6.5625   1.8555   1.5481   1.1594
+
+CLIC_professional
+DataSet Name                                                           Minimum  Maximum  Mean     Median   Standard Deviation
+BSDS100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv               0.1748   5.0644   1.3408   1.1855   0.9120
+CLIC_mobile valid cnn PS_SRResNet, trivial_dis, trivial_con.csv         -0.0562   3.4879   1.4864   1.3072   0.7490
+CLIC_professional valid cnn PS_SRResNet, trivial_dis, trivial_con.csv    0.1310   3.6672   1.2685   0.9085   0.8689
+DIV2K valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                0.1914   4.1491   1.4423   1.2364   0.8255
+Manga109 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              1.1814   6.1637   3.3860   3.3225   1.0148
+PIRM test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.3665   3.3090   1.2463   1.1199   0.6451
+PIRM valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.2088   4.0898   1.1940   1.0273   0.6217
+Set14 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.3690   3.6409   1.5711   1.3423   0.9865
+Set5 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.7259   4.4804   2.4477   2.3122   1.5174
+Urban100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              0.4641   6.8515   1.7778   1.3577   1.1257
+
+CLIC_mobile
+DataSet Name                                                           Minimum  Maximum  Mean     Median   Standard Deviation
+BSDS100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv               0.1490   4.7727   1.1584   1.0158   0.8213
+CLIC_mobile valid cnn PS_SRResNet, trivial_dis, trivial_con.csv         -0.1834   3.2702   1.2034   1.0859   0.6731
+CLIC_professional valid cnn PS_SRResNet, trivial_dis, trivial_con.csv    0.2353   3.8466   1.1187   0.8005   0.8376
+DIV2K valid cnn PS_SRResNet, trivial_dis, trivial_con.csv               -0.0498   3.8759   1.3154   1.0828   0.8053
+Manga109 test cnn PS_SRResNet, trivial_dis, trivial_con.csv              0.2192   5.6813   3.0341   2.9639   0.9763
+PIRM test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.3254   2.8909   1.0844   0.9371   0.5744
+PIRM valid cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.0666   2.8435   1.0163   0.8790   0.5099
+Set14 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                 0.3390   3.2773   1.3756   1.0765   0.9394
+Set5 test cnn PS_SRResNet, trivial_dis, trivial_con.csv                  0.5611   4.0793   1.9806   1.7735   1.4340
+Urban100 test cnn PS_SRResNet, trivial_dis, trivial_con.csv             -0.4150   6.3828   1.5704   1.2586   1.1368

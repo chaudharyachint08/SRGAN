@@ -11,39 +11,6 @@ from tensorflow.python.keras.engine.input_spec import InputSpec
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.keras import backend
 
-class MyUpSampling2D(Layer):
-    "Taken from TF source code for tf.keras.layers.UpSampling2D, with added bicubic"
-    def __init__(self,size=(2, 2),data_format=None,interpolation='nearest',**kwargs):
-        super(MyUpSampling2D, self).__init__(**kwargs)
-        if type(size)!=tuple:
-            size = (size,size)
-        self.data_format = conv_utils.normalize_data_format(data_format)
-        self.size = conv_utils.normalize_tuple(size, 2, 'size')
-        if interpolation not in {'nearest', 'bilinear','bicubic'}:
-            raise ValueError('`interpolation` argument should be one of `"nearest"`,'
-            ' `"bilinear"` or `"bicubic"`.')
-        self.interpolation = interpolation
-        self.input_spec = InputSpec(ndim=4)
-    def compute_output_shape(self, input_shape):
-        input_shape = tensor_shape.TensorShape(input_shape).as_list()
-        height = self.size[0] * input_shape[1] if input_shape[1] is not None else None
-        width  = self.size[1] * input_shape[2] if input_shape[2] is not None else None
-        return tensor_shape.TensorShape([input_shape[0], height, width, input_shape[3]])    # def call(self, inputs):
-    def call(self, inputs):
-        "This method is using Keras backend and would not support BiCubic UpSampling2D"
-        input_shape = tensor_shape.TensorShape(input_shape).as_list() # CHECKPOINT< getting shape at runtime
-        height = self.size[0] * input_shape[1] if input_shape[1] is not None else None
-        width  = self.size[1] * input_shape[2] if input_shape[2] is not None else None
-        if self.interpolation='nearest':
-             return tf.image.resize_nearest_neighbor(inputs,(self.height, self.width),align_corners=True )
-        elif self.interpolation='bilinear':
-            return tf.image.resize_bilinear(         inputs,(self.height, self.width),align_corners=True )
-        elif self.interpolation='bicubic':
-            return tf.image.resize_bicubic(          inputs,(self.height, self.width),align_corners=True )
-    def get_config(self):
-        config = {'size': self.size, 'data_format': self.data_format}
-        base_config = super(MyUpSampling2D, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
 
 class PixelShuffle(Layer):
     "Merges Separate Convolutions into Neighborhoods, increasing image size"
@@ -80,6 +47,7 @@ class DePixelShuffle(Layer):
             return (input_shape[0],)+(input_shape[1]//self.size,)+(input_shape[2]//self.size,)+(input_shape[3]*self.size**2,)
         except:
             return (input_shape[0],)+(None,)+(None,)+(input_shape[3]//self.size**2,)
+
 
 class WeightedSumLayer(Layer):
     "Weighted sum of multiple convolutions, behaviour similar to merge layers"
@@ -156,6 +124,43 @@ class MultiImageFlow(Sequence): # Check, will not work directly as Augmentaion i
                 exec( 'self.{0}_batch = [ cself.{0}_batch[i] for i in sorted(cself.{0}_batch) ]'.format(ele) )
 
         return self.X_batch, self.Y_batch
+
+
+
+class MyUpSampling2D(Layer):
+    "Taken from TF source code for tf.keras.layers.UpSampling2D, with added bicubic"
+    def __init__(self,size=(2, 2),data_format=None,interpolation='nearest',**kwargs):
+        super(MyUpSampling2D, self).__init__(**kwargs)
+        if type(size)!=tuple:
+            size = (size,size)
+        self.data_format = conv_utils.normalize_data_format(data_format)
+        self.size = conv_utils.normalize_tuple(size, 2, 'size')
+        if interpolation not in {'nearest', 'bilinear','bicubic'}:
+            raise ValueError('`interpolation` argument should be one of `"nearest"`,'
+            ' `"bilinear"` or `"bicubic"`.')
+        self.interpolation = interpolation
+        self.input_spec = InputSpec(ndim=4)
+    def compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        height = self.size[0] * input_shape[1] if input_shape[1] is not None else None
+        width  = self.size[1] * input_shape[2] if input_shape[2] is not None else None
+        return tensor_shape.TensorShape([input_shape[0], height, width, input_shape[3]])    # def call(self, inputs):
+    def call(self, inputs):
+        "This method is using Keras backend and would not support BiCubic UpSampling2D"
+        input_shape = tensor_shape.TensorShape(input_shape).as_list() # CHECKPOINT< getting shape at runtime
+        height = self.size[0] * input_shape[1] if input_shape[1] is not None else None
+        width  = self.size[1] * input_shape[2] if input_shape[2] is not None else None
+        if self.interpolation=='nearest':
+             return tf.image.resize_nearest_neighbor(inputs,(self.height, self.width),align_corners=True )
+        elif self.interpolation=='bilinear':
+            return tf.image.resize_bilinear(         inputs,(self.height, self.width),align_corners=True )
+        elif self.interpolation=='bicubic':
+            return tf.image.resize_bicubic(          inputs,(self.height, self.width),align_corners=True )
+    def get_config(self):
+        config = {'size': self.size, 'data_format': self.data_format}
+        base_config = super(MyUpSampling2D, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 
 
 if __name__ == '__main__':
