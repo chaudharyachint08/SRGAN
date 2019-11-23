@@ -5,14 +5,16 @@ import seaborn as sns
 
 
 # chosen_key = 'initial_psnr'
-chosen_key = 'psnr_gain'
+# x_axis     = 'PSNR (BICUBIC)'
 
+
+chosen_key = 'psnr_gain'
 x_axis     = 'PSNR Gain'
 
-base_path  = '/home/malhar/my_work/Data_Analytics_Project/SRGAN/experiments/vary_tests'
+base_path  = '../experiments(analytics)/vary_tests'
 
 
-train_ls = ['DIV2K','Flickr2K','CLIC_professional','CLIC_mobile']
+train_ls = ['CLIC_mobile','CLIC_professional','DIV2K','Flickr2K',]
 
 plot_choice = {
     'CLIC_mobile'       : ['train','valid',],
@@ -54,14 +56,14 @@ def ihist(data):
 
 
 def multi_train(data_name='PIRM',data_type='test'):
+    'Multiple trained model instances performance on same test set'
     print( '{:70s} {:8s} {:8s} {:8s} {:8s} {:8s}'.format('DataSet Name','Minimum','Maximum','Mean','Median','Standard Deviation') )
-    for train_name in train_ls:
-        ipdir = os.path.join(base_path,train_name)
-        for i in sorted(os.listdir(ipdir)):
+    for i in os.listdir(os.path.join(base_path,'DIV2K')):
+        for train_name in sorted(train_ls):
             if i.endswith('.csv') and ' '.join((data_name,data_type)) in i:
                 name = ' '.join(i.split()[:2])
                 if name in plot_list:
-                    df = pd.read_csv(os.path.join(ipdir,i))
+                    df = pd.read_csv(os.path.join(base_path,train_name,i))
                     sns.distplot(df[chosen_key],bins=10,hist=False,kde=True,rug=False,label=train_name,axlabel=False)
                     arr = df['psnr_gain']
                     print( '{:70s} {:8.4f} {:8.4f} {:8.4f} {:8.4f} {:8.4f}'.format(i , arr.min() , arr.max() , arr.mean() , arr.median() , arr.std()) )
@@ -74,12 +76,14 @@ def multi_train(data_name='PIRM',data_type='test'):
     axs = plt.axes()
     axs.set_xlabel(x_axis)
     plt.savefig( os.path.join('Train {}.PNG'.format(' '.join((data_name,data_type)))) , dpi=600 , bbox_inches='tight' , format='PNG' )
+
     plt.close()
     # axs.get_yaxis().set_visible(False)
     # plt.show()
 
 
 def multi_test(train_name='DIV2K'):
+    'Same model performance is plotted for all test sets in dcitionary described above'
     ip_dir = os.path.join(base_path,train_name)
 
     print( '{:70s} {:8s} {:8s} {:8s} {:8s} {:8s}'.format('DataSet Name','Minimum','Maximum','Mean','Median','Standard Deviation') )
