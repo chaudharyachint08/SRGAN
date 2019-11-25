@@ -21,8 +21,8 @@ min_psnr, max_psnr = 20,40
 bicubic_bins, prob_update_bins = 20, 5
 
 prob_upper_limit = 0.003
-init_option = 'Uniform'
-# init_option = 'Bicubic'
+# init_option = 'Uniform'
+init_option = 'Bicubic'
 
 
 
@@ -134,8 +134,6 @@ plt.title('Assignment using {} Distribution'.format(init_option))
 plt.savefig( '{} Assignment.PNG'.format(init_option) , dpi=600 , bbox_inches='tight' , fromat='PNG' )
 # plt.show()
 plt.close()
-
-
 
 
 
