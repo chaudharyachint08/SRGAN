@@ -65,8 +65,7 @@ def initiate(dct):
         X = ReLU()(X)
         return X
 
-    VDSR = {
-        'name'      :'VDSR' ,
+    VDSR = { 'name'      :'VDSR' ,
         # Block Links
         'block'    :[(i,i+1)      for i in range(B)] + [(B,B+1),] ,
         'block_sub':['vdsr_block' for i in range(B)] + ['vdsr_last_block',] ,
@@ -74,8 +73,6 @@ def initiate(dct):
         'merge'    :[(0,B+1,B+2),],
         'merge_sub':['Add'],
         }
-
-
 
 
     def gen_residual_block(X_input):
@@ -94,8 +91,7 @@ def initiate(dct):
         X = PReLU(shared_axes=(1,2))(X)
         return X
 
-    SRResNet = {
-        'name'      :'SRResNet',
+    SRResNet = { 'name'      :'SRResNet',
         # Convolution Links
         'convo'    :[(0,1),(B+2,B+3),(B+5+int(np.ceil(np.log2(scale))),B+5+int(np.ceil(np.log2(scale)))+1),],
         'convo_sub':['Conv2D','Conv2D','Conv2D',],

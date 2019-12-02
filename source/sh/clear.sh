@@ -1,0 +1,1 @@
+for i in $(nvidia-smi | grep 'python' | awk '{ print $3 }' | xargs -n1 kill -9); do kill -9 $i; done
