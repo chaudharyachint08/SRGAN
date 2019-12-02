@@ -1,0 +1,86 @@
+# High Quality Training Specific Datasets
+
+#### DIV2K Dataset
+https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_train_HR.zip
+https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip
+
+#### Flick2K Dataset
+https://cv.snu.ac.kr/research/EDSR/Flickr2K.tar
+
+
+CLIC Dataset http://www.compression.cc/challenge/
+
+#### CLIC Professional Version
+https://data.vision.ee.ethz.ch/cvl/clic/professional_train.zip
+https://data.vision.ee.ethz.ch/cvl/clic/professional_valid.zip
+//https://data.vision.ee.ethz.ch/cvl/clic/test/CLIC2019Professional_test.zip
+
+#### CLIC Mobile Version
+https://data.vision.ee.ethz.ch/cvl/clic/mobile_train.zip
+https://data.vision.ee.ethz.ch/cvl/clic/mobile_valid.zip
+//https://data.vision.ee.ethz.ch/cvl/clic/test/CLIC2019Mobile_test.zip
+
+
+
+
+# Datasets used commonly for testing of Super-Resolution Applications
+
+## PIRM 2018 Datasets
+https://pirm2018.org/files/PIRM_dataset.zip
+
+If you use this dataset, please cite our report:
+Blau, Y., Mechrez, R., Timofte, R., Michaeli, T., Zelnik-Manor, L. "The 2018 PIRM Challenge on Perceptual Image Super-resolution."
+In: Proceedings of the European Conference on Computer Vision Workshops (ECCVW), 2018.
+
+Licensing: This dataset is published under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+
+
+## SR Testing Datasets
+http://vllab.ucmerced.edu/wlai24/LapSRN/results/SR_testing_datasets.zip
+
+
+
+
+
+<Arrangement of Datasets in "../data" directory, which is same level as "../source" from where all code is executed>
+
+.
+├── HR
+│   ├── sample
+│   │   ├── test
+│   │   ├── train
+│   │   └── valid
+│   ├── BSDS100
+│   │   └── test
+│   ├── CLIC_mobile
+│   │   ├── train
+│   │   └── valid
+│   ├── CLIC_professional
+│   │   ├── train
+│   │   └── valid
+│   ├── DIV2K
+│   │   ├── train
+│   │   └── valid
+│   ├── Flickr2K
+│   │   └── train
+│   ├── Manga109
+│   │   └── test
+│   ├── PIRM
+│   │   ├── test
+│   │   └── valid
+│   ├── Set14
+│   │   └── test
+│   ├── Set5
+│   │   └── test
+│   └── Urban100
+│       └── test
+└── LR
+    ├── sample
+    │   ├── train
+    │   ├── valid
+    │   ├── test
+    │   └── scale.txt
+    └── historical
+        ├── test
+        └── scale.txt
